@@ -24,7 +24,7 @@ arch:
 	$(GO) run github.com/fe3dback/go-arch-lint@v1.19.0 check
 
 sec:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 fmt:
 	$(GO) tool gofumpt -w .
