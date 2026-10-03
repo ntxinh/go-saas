@@ -31,8 +31,7 @@
 cmd/api/main.go · cmd/worker/main.go · cmd/seed/main.go
 internal/app/wire.go
 internal/shared/config/config.go · config_test.go
-internal/shared/errs/errs.go · errs_test.go
-internal/shared/database/database.go · migrate.go · migrations/embed.go
+internal/shared/database/database.go · migrate.go · migrations.go (embed.FS over ../migrations)
 internal/shared/server/server.go · respond.go · respond_test.go
 internal/shared/middleware/{requestid,authn,tenant,rbac,ratelimit,idempotency}.go + tests
 internal/shared/events/{events.go,payloads.go} · events_test.go
