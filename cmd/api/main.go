@@ -12,6 +12,7 @@ import (
 
 	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/exodia/go-saas/internal/shared/database"
 	"github.com/exodia/go-saas/internal/shared/otel"
 	"github.com/exodia/go-saas/internal/shared/server"
 )
@@ -42,12 +43,22 @@ func run() error {
 		defer c()
 		_ = shutdown(fctx)
 	}()
-	r, err := app.Wire(ctx, cfg, log)
+	// Spec §7: run migrations at API boot under a pg advisory lock (safe
+	// across replicas; the worker deliberately doesn't — it doesn't own
+	// the schema lifecycle).
+	if err := database.Migrate(ctx, cfg.DatabaseURL); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	r, closeApp, err := app.Wire(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
 	log.Info("listening", "addr", fmt.Sprintf(":%d", cfg.Port), "env", cfg.Env)
-	if err := server.Run(ctx, r, fmt.Sprintf(":%d", cfg.Port)); err != nil {
+	err = server.Run(ctx, r, fmt.Sprintf(":%d", cfg.Port))
+	// HTTP has drained; now stop bus/scheduler and release resources in
+	// spec §7 order (otel flush follows via the deferred shutdown above).
+	closeApp()
+	if err != nil {
 		return err
 	}
 	log.Info("shutdown complete")

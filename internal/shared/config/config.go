@@ -24,6 +24,7 @@ type Config struct {
 	ResendAPIKey       string `env:"RESEND_API_KEY"`
 	SMTPAddr           string `env:"SMTP_ADDR" envDefault:"localhost:1025"`
 	MailFrom           string `env:"MAIL_FROM" envDefault:"go-saas <no-reply@go-saas.local>"`
+	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:3000"` // comma-separated
 
 	piiKey []byte
 }

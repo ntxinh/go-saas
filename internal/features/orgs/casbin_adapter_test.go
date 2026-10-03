@@ -12,6 +12,7 @@ import (
 
 	"github.com/exodia/go-saas/internal/features/orgs"
 	"github.com/exodia/go-saas/internal/shared/database"
+	"github.com/exodia/go-saas/internal/shared/errs"
 	"github.com/exodia/go-saas/internal/testutil"
 )
 
@@ -122,4 +123,61 @@ func TestMembershipWritesPropagateAuthzError(t *testing.T) {
 	require.ErrorIs(t, err, sentinel)
 	err = svc.RemoveMember(ctx, org.TenantID, member)
 	require.ErrorIs(t, err, sentinel)
+}
+
+// The stale-g-line bug: a RemoveMember whose revoke failed leaves
+// "role:owner" in casbin_rule while the membership row is gone. Re-adding
+// the user at a lesser role must clear it — Grant is set-semantics. The
+// row delete is done via SQL to simulate the unhealable state without
+// needing a casbin failure injection.
+func TestReAddClearsStaleRole(t *testing.T) {
+	pool, ctx := newPool(t)
+	ef, err := orgs.NewEnforcer(pool)
+	require.NoError(t, err)
+	svc := orgs.NewService(pool, nil, ef)
+	u := addUser(ctx, t, pool)
+	org, err := svc.Create(ctx, u, "Acme")
+	require.NoError(t, err)
+
+	// Owner grants POST; row removed, g-line survives (as a failed
+	// revoke would leave it).
+	ok, err := ef.Enforce(u.String(), org.TenantID.String(), "/v1/orgs/x", "POST")
+	require.NoError(t, err)
+	require.True(t, ok)
+	_, err = pool.Exec(ctx, `DELETE FROM memberships WHERE tenant_id=$1 AND user_id=$2`,
+		pgid(org.TenantID), pgid(u))
+	require.NoError(t, err)
+
+	require.NoError(t, svc.AddMember(ctx, org.TenantID, u, "member"))
+
+	// Set-semantics Grant dropped the stale role:owner line.
+	ok, err = ef.Enforce(u.String(), org.TenantID.String(), "/v1/orgs/x", "POST")
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = ef.Enforce(u.String(), org.TenantID.String(), "/v1/orgs/x", "GET")
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+// Same heal, other side: re-removing a member whose row is already gone
+// returns 404 but still attempts the idempotent revoke, clearing the
+// stale g-line.
+func TestRemoveMemberNotFoundStillRevokes(t *testing.T) {
+	pool, ctx := newPool(t)
+	ef, err := orgs.NewEnforcer(pool)
+	require.NoError(t, err)
+	svc := orgs.NewService(pool, nil, ef)
+	u := addUser(ctx, t, pool)
+	org, err := svc.Create(ctx, u, "Acme")
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `DELETE FROM memberships WHERE tenant_id=$1 AND user_id=$2`,
+		pgid(org.TenantID), pgid(u))
+	require.NoError(t, err)
+
+	err = svc.RemoveMember(ctx, org.TenantID, u)
+	assert.ErrorIs(t, err, errs.ErrNotFound)
+
+	ok, err := ef.Enforce(u.String(), org.TenantID.String(), "/v1/orgs/x", "GET")
+	require.NoError(t, err)
+	assert.False(t, ok)
 }

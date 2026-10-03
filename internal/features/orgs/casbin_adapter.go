@@ -129,9 +129,16 @@ func (f *Enforcer) Enforce(sub, dom, obj, act string) (bool, error) {
 	return f.e.Enforce("user:"+sub, "org:"+dom, obj, act)
 }
 
-// Grant records "user has role in org" as a g-line. Satisfies
-// Service's Authorizer seam.
+// Grant sets the user's role in the org: every prior g-line for this
+// user+dom is removed before the new one is added. Set-semantics heals a
+// stale line left by a failed revoke (e.g. RemoveMember committed the
+// row delete but its revoke errored — re-adding at a different role
+// would otherwise keep the old grant too). Satisfies Service's
+// Authorizer seam.
 func (f *Enforcer) Grant(_ context.Context, orgID, userID, role string) error {
+	if _, err := f.e.RemoveFilteredGroupingPolicy(0, "user:"+userID, "", "org:"+orgID); err != nil {
+		return err
+	}
 	_, err := f.e.AddGroupingPolicy("user:"+userID, "role:"+role, "org:"+orgID)
 	return err
 }

@@ -28,17 +28,19 @@ import (
 	"github.com/exodia/go-saas/internal/shared/server"
 )
 
-// Wire builds the application router. ctx bounds the JWKS refresh
-// goroutine's lifetime.
-func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, error) {
+// Wire builds the application router and returns a close func the caller
+// runs AFTER the HTTP drain, in spec §7 order: events router → scheduler
+// → asynq client → redis → pgx pool (otel flush stays deferred in main).
+// ctx bounds the JWKS refresh goroutine's lifetime.
+func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, func(), error) {
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	keys, err := keyfunc.NewDefaultCtx(ctx, []string{cfg.JWKsURL()})
 	if err != nil {
-		return nil, fmt.Errorf("app: jwks %s: %w", cfg.JWKsURL(), err)
+		return nil, nil, fmt.Errorf("app: jwks %s: %w", cfg.JWKsURL(), err)
 	}
 
 	// PII_KEY is optional in dev: without it, PII fields decrypt to "".
@@ -46,14 +48,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	if cfg.PIIKey != "" {
 		cipher, err = security.New(cfg.PIIKey)
 		if err != nil {
-			return nil, fmt.Errorf("app: %w", err)
+			return nil, nil, fmt.Errorf("app: %w", err)
 		}
 	}
 
 	// Redis + asynq: the API enqueues; the Task-6 worker consumes.
 	rdb, err := queue.Redis(ctx, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	asynqClient := queue.NewClient(rdb)
 
@@ -61,7 +63,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	// subscriber; other events are publish-side contracts for now).
 	router, err := events.NewRouter(log)
 	if err != nil {
-		return nil, fmt.Errorf("app: events: %w", err)
+		return nil, nil, fmt.Errorf("app: events: %w", err)
 	}
 	events.Subscribe(router, events.TopicMemberInvited, func(ctx context.Context, payload []byte) error {
 		var p events.MemberInvited
@@ -75,7 +77,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	// (worker-side, orgs.Service.ExpireStale) lands with Task 6.
 	sched := asynq.NewScheduler(queue.RedisOpt(rdb), nil)
 	if _, err := sched.Register("@hourly", asynq.NewTask(queue.TaskInviteExpirySweep, nil)); err != nil {
-		return nil, fmt.Errorf("app: scheduler: %w", err)
+		return nil, nil, fmt.Errorf("app: scheduler: %w", err)
 	}
 
 	userSvc := users.NewService(users.NewRepo(pool), cipher)
@@ -84,7 +86,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	// at boot. Membership writes keep its g-lines in sync via orgSvc.
 	enforcer, err := orgs.NewEnforcer(pool)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	orgSvc := orgs.NewService(pool, router.Publisher(), enforcer)
 	events.Subscribe(router, events.TopicRoleChanged, func(_ context.Context, payload []byte) error {
@@ -120,15 +122,12 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	orgsFeat := orgs.NewFeature(orgSvc, enforcer)
 	r := server.New(cfg, log)
 
-	// The router and scheduler run until ctx is done; Close runs their
-	// shutdown when the process is exiting anyway.
+	// The events router runs under context.Background() — watermill's Run
+	// reacts to ctx.Done, which would race the HTTP drain. It stops when
+	// the returned close func calls router.Close() after server.Run
+	// returns. Same for the scheduler (Run blocks until Shutdown).
 	go func() {
-		<-ctx.Done()
-		sched.Shutdown()
-		_ = router.Close()
-	}()
-	go func() {
-		if err := router.Run(ctx); err != nil {
+		if err := router.Run(context.Background()); err != nil {
 			log.Error("events router stopped", "err", err)
 		}
 	}()
@@ -152,7 +151,18 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		authFeat.RegisterRoutes(r)
 		orgsFeat.RegisterRoutes(r)
 	})
-	return r, nil
+	// Spec §7 shutdown order — the caller runs this only after server.Run
+	// has drained HTTP, so no in-flight request publishes into a closed bus.
+	closeApp := func() {
+		if err := router.Close(); err != nil {
+			log.Error("events router close", "err", err)
+		}
+		sched.Shutdown()
+		_ = asynqClient.Close()
+		_ = rdb.Close()
+		pool.Close()
+	}
+	return r, closeApp, nil
 }
 
 func mailerFor(cfg *config.Config) mail.Sender {

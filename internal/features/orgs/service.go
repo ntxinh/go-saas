@@ -273,6 +273,12 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) err
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errs.ErrNotFound) {
+			// Row already gone, but a prior RemoveMember may have committed
+			// the delete then failed its revoke — attempt the heal anyway
+			// (idempotent). Caller still sees 404.
+			_ = s.revoke(ctx, orgID, userID)
+		}
 		return err
 	}
 	s.publish(ctx, events.TopicMemberRemoved, events.MemberRemoved{OrgID: orgID, UserID: userID})

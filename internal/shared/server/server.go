@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/riandyrn/otelchi"
 	"golang.org/x/sync/errgroup"
 
@@ -17,7 +19,7 @@ import (
 )
 
 // New builds the application router.
-func New(_ *config.Config, log *slog.Logger) *chi.Mux {
+func New(cfg *config.Config, log *slog.Logger) *chi.Mux {
 	r := chi.NewRouter()
 	// OTel outermost (otelchi wraps otelhttp, names spans by route
 	// pattern); healthz excluded from traces.
@@ -27,6 +29,14 @@ func New(_ *config.Config, log *slog.Logger) *chi.Mux {
 	))
 	r.Use(appmw.RequestID(log))
 	r.Use(appmw.Recover())
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   strings.Split(cfg.CORSAllowedOrigins, ","),
+		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"},
+		ExposedHeaders:   []string{"Idempotent-Replay", "Retry-After"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
