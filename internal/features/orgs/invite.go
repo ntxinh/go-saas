@@ -122,6 +122,9 @@ func (s *Service) Accept(ctx context.Context, token string, userID uuid.UUID, em
 			return err
 		}
 		if n == 0 {
+			if time.Now().After(row.ExpiresAt.Time) {
+				return errs.Validation(map[string]string{"invite": "expired"})
+			}
 			return errs.ErrConflict
 		}
 		return nil
@@ -140,7 +143,11 @@ func (s *Service) Accept(ctx context.Context, token string, userID uuid.UUID, em
 }
 
 // RevokeInvite deletes a pending invite inside the org's tenant tx.
-func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID) error {
+// Same interim owner/admin gate as Invite (Task 7's casbin replaces it).
+func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID, callerRole string) error {
+	if callerRole != "owner" && callerRole != "admin" {
+		return errs.ErrForbidden
+	}
 	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
 		n, err := s.repo.withTx(tx).q.RevokeInvite(ctx, sqlc.RevokeInviteParams{
 			ID: pgUUID(inviteID), TenantID: pgUUID(orgID),

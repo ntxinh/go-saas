@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hibiken/asynq"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -64,4 +65,17 @@ func TestEnqueueInjectsTraceparent(t *testing.T) {
 	var m map[string]any
 	require.NoError(t, json.Unmarshal(tasks[0].Payload, &m))
 	assert.Equal(t, "00-0102030405060708090a0b0c0d0e0f10-0102030405060708-01", m["traceparent"])
+}
+
+func TestRedisOptPropagatesTLSAndUsername(t *testing.T) {
+	opt, err := redis.ParseURL("rediss://user:secret@upstash.example:6379/2")
+	require.NoError(t, err)
+	rdb := redis.NewClient(opt)
+	defer rdb.Close()
+
+	ro := queue.RedisOpt(rdb)
+	assert.Equal(t, "user", ro.Username)
+	assert.Equal(t, "upstash.example:6379", ro.Addr)
+	assert.Equal(t, 2, ro.DB)
+	require.NotNil(t, ro.TLSConfig, "rediss:// must carry TLS into asynq")
 }

@@ -173,7 +173,8 @@ func (f *Feature) revokeInvite(w http.ResponseWriter, r *http.Request) {
 		errs.Write(w, errs.ErrNotFound)
 		return
 	}
-	if err := f.svc.RevokeInvite(r.Context(), orgID(r), inviteID); err != nil {
+	callerRole, _ := middleware.Role(r.Context())
+	if err := f.svc.RevokeInvite(r.Context(), orgID(r), inviteID, callerRole); err != nil {
 		errs.Write(w, err)
 		return
 	}

@@ -52,7 +52,7 @@ FROM invites WHERE token = $1;
 
 -- name: AcceptInvite :execrows
 UPDATE invites SET accepted_at = now()
-WHERE token = $1 AND accepted_at IS NULL;
+WHERE token = $1 AND accepted_at IS NULL AND expires_at > now();
 
 -- name: RevokeInvite :execrows
 DELETE FROM invites WHERE id = $1 AND tenant_id = $2;

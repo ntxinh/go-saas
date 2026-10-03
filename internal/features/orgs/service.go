@@ -301,7 +301,7 @@ func (s *Service) guardLastOwner(ctx context.Context, q *sqlc.Queries, orgID, us
 }
 
 // publish emits an event when a publisher is wired; failures are logged
-// and swallowed — events are best-effort until Task 5 lands.
+// and swallowed — events are best-effort (at-most-once GoChannel bus).
 func (s *Service) publish(ctx context.Context, topic string, payload any) {
 	if s.pub == nil {
 		return

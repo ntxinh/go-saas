@@ -45,9 +45,24 @@ func TestInviteAcceptFlow(t *testing.T) {
 	role, ok := svc.IsMember(ctx, org.TenantID, invitee)
 	require.True(t, ok)
 	assert.Equal(t, "member", role)
-
 	assert.Contains(t, pub.topics, "org.member_invited")
 	assert.Contains(t, pub.topics, "org.member_joined")
+}
+
+func TestRevokeForbiddenForMember(t *testing.T) {
+	svc, pool, ctx := newService(t)
+	owner := addUser(t, pool, ctx)
+	org, err := svc.Create(ctx, owner, "Acme")
+	require.NoError(t, err)
+	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
+
+	err = svc.RevokeInvite(ctx, org.TenantID, inv.ID, "member")
+	assert.ErrorIs(t, err, errs.ErrForbidden)
+
+	// owner can revoke; invite is gone afterwards
+	require.NoError(t, svc.RevokeInvite(ctx, org.TenantID, inv.ID, "owner"))
+	err = svc.Accept(ctx, inv.Token, uuid.New(), "new@x.y")
+	assert.ErrorIs(t, err, errs.ErrNotFound)
 }
 
 func TestInviteForbiddenForMember(t *testing.T) {

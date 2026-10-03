@@ -29,12 +29,16 @@ func Redis(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
 	return rdb, nil
 }
 
-// RedisOpt adapts a go-redis client to asynq's connection option.
+// RedisOpt adapts a go-redis client to asynq's connection option —
+// including TLS and ACL username (rediss:// managed Redis like Upstash).
 func RedisOpt(rdb *redis.Client) asynq.RedisClientOpt {
+	o := rdb.Options()
 	return asynq.RedisClientOpt{
-		Addr:     rdb.Options().Addr,
-		Password: rdb.Options().Password,
-		DB:       rdb.Options().DB,
+		Addr:      o.Addr,
+		Username:  o.Username,
+		Password:  o.Password,
+		DB:        o.DB,
+		TLSConfig: o.TLSConfig,
 	}
 }
 

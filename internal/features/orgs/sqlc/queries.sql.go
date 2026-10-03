@@ -13,7 +13,7 @@ import (
 
 const acceptInvite = `-- name: AcceptInvite :execrows
 UPDATE invites SET accepted_at = now()
-WHERE token = $1 AND accepted_at IS NULL
+WHERE token = $1 AND accepted_at IS NULL AND expires_at > now()
 `
 
 func (q *Queries) AcceptInvite(ctx context.Context, token string) (int64, error) {
