@@ -32,6 +32,7 @@ func WireWorker(ctx context.Context, cfg *config.Config, _ *slog.Logger) (*asynq
 
 	orgSvc := orgs.NewService(pool, nil, nil) // worker never publishes; no casbin writes
 	mux := asynq.NewServeMux()
+	mux.Use(queue.Tracing()) // continue the API's trace via payload traceparent
 	mux.HandleFunc(queue.TaskEmailInvite, orgs.HandleEmailInvite(mailer, cfg.AppURL))
 	mux.HandleFunc(queue.TaskInviteExpirySweep, orgs.HandleInviteExpirySweep(orgSvc))
 

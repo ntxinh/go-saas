@@ -11,6 +11,7 @@ import (
 
 	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/exodia/go-saas/internal/shared/otel"
 	"github.com/exodia/go-saas/internal/shared/server"
 )
 
@@ -22,13 +23,20 @@ func main() {
 }
 
 func run() error {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	log := slog.New(otel.LogHandler(slog.NewJSONHandler(os.Stdout, nil)))
+	slog.SetDefault(log)
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	shutdown, err := otel.Setup(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	// Flush spans after server.Run drains, before exit closes the pool.
+	defer func() { _ = shutdown(context.Background()) }()
 	r, err := app.Wire(ctx, cfg, log)
 	if err != nil {
 		return err

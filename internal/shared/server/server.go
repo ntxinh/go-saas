@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/riandyrn/otelchi"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/exodia/go-saas/internal/shared/config"
@@ -18,6 +19,12 @@ import (
 // New builds the application router.
 func New(cfg *config.Config, log *slog.Logger) *chi.Mux {
 	r := chi.NewRouter()
+	// OTel outermost (otelchi wraps otelhttp, names spans by route
+	// pattern); healthz excluded from traces.
+	r.Use(otelchi.Middleware("api",
+		otelchi.WithChiRoutes(r),
+		otelchi.WithFilter(func(r *http.Request) bool { return r.URL.Path != "/healthz" }),
+	))
 	r.Use(appmw.RequestID(log))
 	r.Use(appmw.Recover())
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {

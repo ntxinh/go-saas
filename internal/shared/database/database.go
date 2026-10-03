@@ -6,21 +6,21 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/exaring/otelpgx"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// NewPool parses url into a pgx pool (MaxConns 10).
-// Extension point: Task 10 appends an otelpgx tracer — set
-// cfg.ConnConfig.Tracer (nil today) before constructing the pool.
+// NewPool parses url into a pgx pool (MaxConns 10). The otelpgx tracer
+// resolves the global provider at use time — free when OTel is noop.
 func NewPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("database: parse url: %w", err)
 	}
 	cfg.MaxConns = 10
-	// cfg.ConnConfig.Tracer = nil // otelpgx tracer goes here (Task 10)
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("database: connect: %w", err)

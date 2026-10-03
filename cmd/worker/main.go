@@ -12,6 +12,7 @@ import (
 
 	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/exodia/go-saas/internal/shared/otel"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 }
 
 func run() error {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	log := slog.New(otel.LogHandler(slog.NewJSONHandler(os.Stdout, nil)))
 	slog.SetDefault(log)
 	cfg, err := config.Load()
 	if err != nil {
@@ -30,6 +31,12 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	shutdown, err := otel.Setup(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	// Flush spans after srv.Run returns (in-flight tasks done).
+	defer func() { _ = shutdown(context.Background()) }()
 	srv, mux, err := app.WireWorker(ctx, cfg, log)
 	if err != nil {
 		return err
