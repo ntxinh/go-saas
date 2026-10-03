@@ -17,13 +17,19 @@ import (
 	"github.com/exodia/go-saas/internal/testutil"
 )
 
-func newService(t *testing.T) (*orgs.Service, *pgxpool.Pool, context.Context) {
+func newPool(t *testing.T) (*pgxpool.Pool, context.Context) {
 	t.Helper()
 	ctx := context.Background()
 	pool, err := database.NewPool(ctx, testutil.Postgres(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	return orgs.NewService(pool, nil), pool, ctx
+	return pool, ctx
+}
+
+func newService(t *testing.T) (*orgs.Service, *pgxpool.Pool, context.Context) {
+	t.Helper()
+	pool, ctx := newPool(t)
+	return orgs.NewService(pool, nil, nil), pool, ctx
 }
 
 func pgid(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }

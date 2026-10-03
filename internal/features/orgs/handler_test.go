@@ -28,7 +28,7 @@ func newRouter(t *testing.T) (*chi.Mux, *pgxpool.Pool) {
 
 	r := chi.NewRouter()
 	r.Route("/v1", func(r chi.Router) {
-		orgs.NewFeature(orgs.NewService(pool, nil)).RegisterRoutes(r)
+		orgs.NewFeature(orgs.NewService(pool, nil, nil), nil).RegisterRoutes(r)
 	})
 	return r, pool
 }

@@ -51,18 +51,27 @@ type Publisher interface {
 	Publish(ctx context.Context, topic string, payload any) error
 }
 
+// Authorizer is the optional casbin seam — Task 7 wires orgs.Enforcer;
+// nil means "don't sync g-lines". Membership writes grant/revoke so the
+// enforcer's grouping policies track the members table.
+type Authorizer interface {
+	Grant(ctx context.Context, orgID, userID, role string) error
+	Revoke(ctx context.Context, orgID, userID string) error
+}
+
 // Service implements org use-cases. Tenant-scoped methods take the orgID
 // explicitly (the Tenant middleware has already verified membership);
 // they still run under WithTenantTx so RLS is the backstop.
 type Service struct {
-	pool *pgxpool.Pool
-	repo *Repo
-	pub  Publisher
+	pool  *pgxpool.Pool
+	repo  *Repo
+	pub   Publisher
+	authz Authorizer
 }
 
-// NewService builds the orgs service. pub may be nil.
-func NewService(pool *pgxpool.Pool, pub Publisher) *Service {
-	return &Service{pool: pool, repo: NewRepo(pool), pub: pub}
+// NewService builds the orgs service. pub and authz may be nil.
+func NewService(pool *pgxpool.Pool, pub Publisher, authz Authorizer) *Service {
+	return &Service{pool: pool, repo: NewRepo(pool), pub: pub, authz: authz}
 }
 
 func orgFrom(o sqlc.Org) Org {
@@ -98,6 +107,7 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string) (Or
 		return Org{}, err
 	}
 	s.publish(ctx, "org.created", org)
+	s.grant(ctx, org.TenantID, userID, "owner")
 	return org, nil
 }
 
@@ -214,6 +224,7 @@ func (s *Service) AddMember(ctx context.Context, orgID, userID uuid.UUID, role s
 		return fmt.Errorf("orgs: add member: %w", err)
 	}
 	s.publish(ctx, "org.member_added", Member{UserID: userID, Role: role})
+	s.grant(ctx, orgID, userID, role)
 	return nil
 }
 
@@ -240,6 +251,7 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) err
 		return err
 	}
 	s.publish(ctx, events.TopicMemberRemoved, events.MemberRemoved{OrgID: orgID, UserID: userID})
+	s.revoke(ctx, orgID, userID)
 	return nil
 }
 
@@ -268,6 +280,8 @@ func (s *Service) ChangeRole(ctx context.Context, orgID, userID uuid.UUID, role 
 		return err
 	}
 	s.publish(ctx, events.TopicRoleChanged, events.RoleChanged{OrgID: orgID, UserID: userID, Role: role})
+	s.revoke(ctx, orgID, userID)
+	s.grant(ctx, orgID, userID, role)
 	return nil
 }
 
@@ -308,5 +322,26 @@ func (s *Service) publish(ctx context.Context, topic string, payload any) {
 	}
 	if err := s.pub.Publish(ctx, topic, payload); err != nil {
 		middleware.Logger(ctx).Warn("event publish failed", "topic", topic, "err", err)
+	}
+}
+
+// grant/revoke sync casbin g-lines after a committed membership write.
+// Like publish, failures are logged and swallowed — the members table is
+// authoritative; a missed g-line fails closed (deny) not open.
+func (s *Service) grant(ctx context.Context, orgID, userID uuid.UUID, role string) {
+	if s.authz == nil {
+		return
+	}
+	if err := s.authz.Grant(ctx, orgID.String(), userID.String(), role); err != nil {
+		middleware.Logger(ctx).Warn("authz grant failed", "org", orgID, "user", userID, "err", err)
+	}
+}
+
+func (s *Service) revoke(ctx context.Context, orgID, userID uuid.UUID) {
+	if s.authz == nil {
+		return
+	}
+	if err := s.authz.Revoke(ctx, orgID.String(), userID.String()); err != nil {
+		middleware.Logger(ctx).Warn("authz revoke failed", "org", orgID, "user", userID, "err", err)
 	}
 }

@@ -30,7 +30,7 @@ func WireWorker(ctx context.Context, cfg *config.Config, _ *slog.Logger) (*asynq
 		return nil, nil, errors.New("app: no mail sender (set RESEND_API_KEY, or SMTP_ADDR in dev)")
 	}
 
-	orgSvc := orgs.NewService(pool, nil) // worker never publishes
+	orgSvc := orgs.NewService(pool, nil, nil) // worker never publishes; no casbin writes
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(queue.TaskEmailInvite, orgs.HandleEmailInvite(mailer, cfg.AppURL))
 	mux.HandleFunc(queue.TaskInviteExpirySweep, orgs.HandleInviteExpirySweep(orgSvc))

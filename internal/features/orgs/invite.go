@@ -36,13 +36,10 @@ func inviteFrom(i sqlc.Invite) Invite {
 }
 
 // Invite creates a pending invite inside the org's tenant tx and
-// publishes MemberInvited after commit. callerRole must be owner/admin
-// (interim check; Task 7's casbin replaces it). Invited roles are
-// limited to admin/member — owners are only created via org creation.
-func (s *Service) Invite(ctx context.Context, orgID uuid.UUID, inviterEmail, callerRole, email, role string) (Invite, error) {
-	if callerRole != "owner" && callerRole != "admin" {
-		return Invite{}, errs.ErrForbidden
-	}
+// publishes MemberInvited after commit. Route-level RBAC (casbin) is the
+// owner/admin gate. Invited roles are limited to admin/member — owners
+// are only created via org creation.
+func (s *Service) Invite(ctx context.Context, orgID uuid.UUID, inviterEmail, email, role string) (Invite, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") {
 		return Invite{}, errs.Validation(map[string]string{"email": "invalid"})
@@ -139,15 +136,13 @@ func (s *Service) Accept(ctx context.Context, token string, userID uuid.UUID, em
 	s.publish(ctx, events.TopicMemberJoined, events.MemberJoined{
 		OrgID: orgID, UserID: userID, Role: row.Role,
 	})
+	s.grant(ctx, orgID, userID, row.Role)
 	return nil
 }
 
 // RevokeInvite deletes a pending invite inside the org's tenant tx.
-// Same interim owner/admin gate as Invite (Task 7's casbin replaces it).
-func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID, callerRole string) error {
-	if callerRole != "owner" && callerRole != "admin" {
-		return errs.ErrForbidden
-	}
+// Route-level RBAC (casbin) is the owner/admin gate.
+func (s *Service) RevokeInvite(ctx context.Context, orgID, inviteID uuid.UUID) error {
 	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
 		n, err := s.repo.withTx(tx).q.RevokeInvite(ctx, sqlc.RevokeInviteParams{
 			ID: pgUUID(inviteID), TenantID: pgUUID(orgID),

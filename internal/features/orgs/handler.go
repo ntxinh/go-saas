@@ -139,7 +139,6 @@ func (f *Feature) changeRole(w http.ResponseWriter, r *http.Request) {
 
 func (f *Feature) invite(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	callerRole, _ := middleware.Role(ctx)
 	inviterEmail, _ := middleware.Email(ctx)
 	var req struct {
 		Email string `json:"email"`
@@ -148,7 +147,7 @@ func (f *Feature) invite(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	inv, err := f.svc.Invite(ctx, orgID(r), inviterEmail, callerRole, req.Email, req.Role)
+	inv, err := f.svc.Invite(ctx, orgID(r), inviterEmail, req.Email, req.Role)
 	if err != nil {
 		errs.Write(w, err)
 		return
@@ -173,8 +172,7 @@ func (f *Feature) revokeInvite(w http.ResponseWriter, r *http.Request) {
 		errs.Write(w, errs.ErrNotFound)
 		return
 	}
-	callerRole, _ := middleware.Role(r.Context())
-	if err := f.svc.RevokeInvite(r.Context(), orgID(r), inviteID, callerRole); err != nil {
+	if err := f.svc.RevokeInvite(r.Context(), orgID(r), inviteID); err != nil {
 		errs.Write(w, err)
 		return
 	}

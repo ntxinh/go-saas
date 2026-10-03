@@ -78,7 +78,30 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	}
 
 	userSvc := users.NewService(users.NewRepo(pool), cipher)
-	orgSvc := orgs.NewService(pool, router.Publisher())
+
+	// Casbin enforcer: pg adapter over casbin_rule, role templates seeded
+	// at boot. Membership writes keep its g-lines in sync via orgSvc.
+	enforcer, err := orgs.NewEnforcer(pool)
+	if err != nil {
+		return nil, err
+	}
+	orgSvc := orgs.NewService(pool, router.Publisher(), enforcer)
+	events.Subscribe(router, events.TopicRoleChanged, func(_ context.Context, payload []byte) error {
+		var p events.RoleChanged
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return err
+		}
+		enforcer.Invalidate(p.OrgID.String())
+		return nil
+	})
+	events.Subscribe(router, events.TopicMemberRemoved, func(_ context.Context, payload []byte) error {
+		var p events.MemberRemoved
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return err
+		}
+		enforcer.Invalidate(p.OrgID.String())
+		return nil
+	})
 	authFeat := auth.New(
 		func(ctx context.Context, id uuid.UUID) (string, error) {
 			p, err := userSvc.Profile(ctx, id)
@@ -95,7 +118,7 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 			}
 			return out, nil
 		})
-	orgsFeat := orgs.NewFeature(orgSvc)
+	orgsFeat := orgs.NewFeature(orgSvc, enforcer)
 	r := server.New(cfg, log)
 
 	// The router and scheduler run until ctx is done; Close runs their

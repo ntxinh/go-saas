@@ -9,19 +9,27 @@ import (
 // Feature is the orgs feature module.
 type Feature struct {
 	svc *Service
+	ef  middleware.Enforcer
 }
 
-func NewFeature(svc *Service) *Feature { return &Feature{svc: svc} }
+// NewFeature builds the feature. ef may be nil (tests without casbin);
+// then the {orgID} subtree keeps only the Tenant membership gate.
+func NewFeature(svc *Service, ef middleware.Enforcer) *Feature {
+	return &Feature{svc: svc, ef: ef}
+}
 
 // RegisterRoutes mounts /orgs on r. Callers mount under /v1 behind
-// Authn+UpsertUser. The {orgID} subtree runs the Tenant middleware which
-// resolves membership and stores tenant+role in ctx.
+// Authn+UpsertUser. The {orgID} subtree runs Tenant (resolves membership
+// + tenant/role into ctx) then RBAC (casbin checks role perms per route).
 func (f *Feature) RegisterRoutes(r chi.Router) {
 	r.Route("/orgs", func(r chi.Router) {
 		r.Post("/", f.create)
 		r.Get("/", f.list)
 		r.Route("/{orgID}", func(r chi.Router) {
 			r.Use(middleware.Tenant(f.svc, "orgID"))
+			if f.ef != nil {
+				r.Use(middleware.RBAC(f.ef))
+			}
 			r.Get("/", f.get)
 			r.Patch("/", f.update)
 			r.Get("/members", f.members)

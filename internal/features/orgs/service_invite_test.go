@@ -27,12 +27,12 @@ func (c *capPub) Publish(_ context.Context, topic string, payload any) error {
 func TestInviteAcceptFlow(t *testing.T) {
 	svc, pool, ctx := newService(t)
 	pub := &capPub{}
-	svc = orgs.NewService(pool, pub)
+	svc = orgs.NewService(pool, pub, nil)
 	owner := addUser(t, pool, ctx)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
-	inv, err := svc.Invite(ctx, org.TenantID, "owner@x.y", "owner", "new@x.y", "member")
+	inv, err := svc.Invite(ctx, org.TenantID, "owner@x.y", "new@x.y", "member")
 	require.NoError(t, err)
 	assert.Equal(t, "new@x.y", inv.Email)
 	assert.Equal(t, "member", inv.Role)
@@ -49,30 +49,18 @@ func TestInviteAcceptFlow(t *testing.T) {
 	assert.Contains(t, pub.topics, "org.member_joined")
 }
 
-func TestRevokeForbiddenForMember(t *testing.T) {
+func TestRevokeInviteRemovesInvite(t *testing.T) {
 	svc, pool, ctx := newService(t)
 	owner := addUser(t, pool, ctx)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
 
-	err = svc.RevokeInvite(ctx, org.TenantID, inv.ID, "member")
-	assert.ErrorIs(t, err, errs.ErrForbidden)
-
-	// owner can revoke; invite is gone afterwards
-	require.NoError(t, svc.RevokeInvite(ctx, org.TenantID, inv.ID, "owner"))
+	// owner can revoke; invite is gone afterwards (RBAC gates who may
+	// call this at the route level — see rbac_e2e_test).
+	require.NoError(t, svc.RevokeInvite(ctx, org.TenantID, inv.ID))
 	err = svc.Accept(ctx, inv.Token, uuid.New(), "new@x.y")
 	assert.ErrorIs(t, err, errs.ErrNotFound)
-}
-
-func TestInviteForbiddenForMember(t *testing.T) {
-	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
-	org, err := svc.Create(ctx, owner, "Acme")
-	require.NoError(t, err)
-
-	_, err = svc.Invite(ctx, org.TenantID, "m@x.y", "member", "new@x.y", "member")
-	assert.ErrorIs(t, err, errs.ErrForbidden)
 }
 
 func TestInviteRejectsBadRole(t *testing.T) {
@@ -81,13 +69,13 @@ func TestInviteRejectsBadRole(t *testing.T) {
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
-	_, err = svc.Invite(ctx, org.TenantID, "o@x.y", "owner", "new@x.y", "owner")
+	_, err = svc.Invite(ctx, org.TenantID, "o@x.y", "new@x.y", "owner")
 	assert.ErrorIs(t, err, errs.ErrValidation)
 }
 
 func invite(t *testing.T, svc *orgs.Service, ctx context.Context, orgID uuid.UUID, email string) orgs.Invite {
 	t.Helper()
-	inv, err := svc.Invite(ctx, orgID, "o@x.y", "owner", email, "member")
+	inv, err := svc.Invite(ctx, orgID, "o@x.y", email, "member")
 	require.NoError(t, err)
 	return inv
 }
