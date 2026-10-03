@@ -11,22 +11,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getUserByID = `-- name: GetUserByID :one
-
-SELECT id, email, display_name, phone, created_at, last_seen FROM users WHERE id = $1
+const getUser = `-- name: GetUser :one
+SELECT id, email, display_name, phone, created_at FROM users WHERE id = $1
 `
 
-// sqlc queries for the users feature (Task 3 adds the real set).
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i User
+type GetUserRow struct {
+	ID          pgtype.UUID
+	Email       string
+	DisplayName []byte
+	Phone       []byte
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (GetUserRow, error) {
+	row := q.db.QueryRow(ctx, getUser, id)
+	var i GetUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.DisplayName,
 		&i.Phone,
 		&i.CreatedAt,
-		&i.LastSeen,
 	)
 	return i, err
+}
+
+const syncUser = `-- name: SyncUser :exec
+
+INSERT INTO users(id, email) VALUES($1, $2)
+ON CONFLICT (id) DO UPDATE SET email = $2, last_seen = now()
+`
+
+type SyncUserParams struct {
+	ID    pgtype.UUID
+	Email string
+}
+
+// sqlc queries for the users feature.
+func (q *Queries) SyncUser(ctx context.Context, arg SyncUserParams) error {
+	_, err := q.db.Exec(ctx, syncUser, arg.ID, arg.Email)
+	return err
 }

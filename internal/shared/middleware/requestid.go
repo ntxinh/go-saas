@@ -11,7 +11,13 @@ import (
 
 type ctxKey int
 
-const loggerKey ctxKey = iota
+// Context keys shared by all middleware in this package. Keep them in one
+// block so values never collide.
+const (
+	loggerKey ctxKey = iota
+	ctxUser
+	ctxTenant
+)
 
 // RequestID assigns a request id (chi) and stores a logger carrying it in ctx.
 func RequestID(log *slog.Logger) func(http.Handler) http.Handler {

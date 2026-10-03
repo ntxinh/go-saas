@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
 	"github.com/exodia/go-saas/internal/shared/server"
 )
@@ -26,9 +27,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	r := server.New(cfg, log)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	r, err := app.Wire(ctx, cfg, log)
+	if err != nil {
+		return err
+	}
 	log.Info("listening", "addr", fmt.Sprintf(":%d", cfg.Port), "env", cfg.Env)
 	if err := server.Run(ctx, r, fmt.Sprintf(":%d", cfg.Port)); err != nil {
 		return err
