@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
@@ -36,7 +37,11 @@ func run() error {
 		return err
 	}
 	// Flush spans after srv.Run returns (in-flight tasks done).
-	defer func() { _ = shutdown(context.Background()) }()
+	defer func() {
+		fctx, c := context.WithTimeout(context.Background(), 5*time.Second)
+		defer c()
+		_ = shutdown(fctx)
+	}()
 	srv, mux, err := app.WireWorker(ctx, cfg, log)
 	if err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/exodia/go-saas/internal/app"
 	"github.com/exodia/go-saas/internal/shared/config"
@@ -36,7 +37,11 @@ func run() error {
 		return err
 	}
 	// Flush spans after server.Run drains, before exit closes the pool.
-	defer func() { _ = shutdown(context.Background()) }()
+	defer func() {
+		fctx, c := context.WithTimeout(context.Background(), 5*time.Second)
+		defer c()
+		_ = shutdown(fctx)
+	}()
 	r, err := app.Wire(ctx, cfg, log)
 	if err != nil {
 		return err

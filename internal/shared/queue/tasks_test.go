@@ -3,6 +3,7 @@ package queue_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/hibiken/asynq"
@@ -10,10 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	otelnoop "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/exodia/go-saas/internal/shared/queue"
 	"github.com/exodia/go-saas/internal/testutil"
@@ -75,7 +78,11 @@ func TestWorkerTracingExtractsTraceparent(t *testing.T) {
 	// Real SDK provider so spans record and expose their context.
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
-	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	t.Cleanup(func() {
+		_ = tp.Shutdown(context.Background())
+		// Restore noop so other tests never inherit this SDK instance.
+		otel.SetTracerProvider(otelnoop.NewTracerProvider())
+	})
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
@@ -100,6 +107,38 @@ func TestWorkerTracingExtractsTraceparent(t *testing.T) {
 	require.Len(t, ended, 1)
 	assert.Equal(t, parent.TraceID(), ended[0].SpanContext().TraceID())
 	assert.True(t, ended[0].Parent().IsRemote(), "extracted parent must be remote")
+}
+
+func TestWorkerTracingRecordsError(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	t.Cleanup(func() {
+		_ = tp.Shutdown(context.Background())
+		otel.SetTracerProvider(otelnoop.NewTracerProvider())
+	})
+	otel.SetTracerProvider(tp)
+
+	fail := errors.New("smtp refused")
+	h := queue.Tracing()(asynq.HandlerFunc(func(context.Context, *asynq.Task) error {
+		return fail
+	}))
+	task := asynq.NewTask(queue.TaskEmailInvite, []byte(`{"name":"x"}`))
+
+	err := h.ProcessTask(context.Background(), task)
+	require.ErrorIs(t, err, fail)
+
+	ended := sr.Ended()
+	require.Len(t, ended, 1)
+	assert.Equal(t, codes.Error, ended[0].Status().Code)
+	assert.Equal(t, fail.Error(), ended[0].Status().Description)
+	require.Len(t, ended[0].Events(), 1, "RecordError must emit an exception event")
+}
+
+func TestProviderRestoredAfterTracingTests(t *testing.T) {
+	// If a sibling test leaked its SDK provider, this span would record.
+	_, span := otel.Tracer("t").Start(context.Background(), "s")
+	defer span.End()
+	assert.False(t, span.IsRecording(), "global provider must be noop")
 }
 
 func TestRedisOptPropagatesTLSAndUsername(t *testing.T) {

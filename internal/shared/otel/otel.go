@@ -23,6 +23,9 @@ import (
 // Setup installs the W3C TraceContext propagator and a global tracer
 // provider: OTLP/HTTP batch export when cfg.OTLPEndpoint is set, noop
 // otherwise. The returned shutdown flushes spans; it is always non-nil.
+// Note: cfg.OTLPEndpoint is passed to WithEndpointURL verbatim — it must
+// be a full URL including scheme and traces path
+// (e.g. http://collector:4318/v1/traces), not a bare host:port.
 func Setup(ctx context.Context, cfg *config.Config) (func(context.Context) error, error) {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	res := resource.NewSchemaless(

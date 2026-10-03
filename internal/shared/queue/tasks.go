@@ -6,6 +6,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -33,7 +34,12 @@ func Tracing() asynq.MiddlewareFunc {
 			ctx, span := otel.Tracer("go-saas/worker").Start(ctx, t.Type(),
 				trace.WithSpanKind(trace.SpanKindConsumer))
 			defer span.End()
-			return next.ProcessTask(ctx, t)
+			err := next.ProcessTask(ctx, t)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			return err
 		})
 	}
 }
