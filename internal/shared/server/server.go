@@ -19,6 +19,7 @@ import (
 func New(cfg *config.Config, log *slog.Logger) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(appmw.RequestID(log))
+	r.Use(appmw.Recover())
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis_rate/v10"
@@ -61,6 +62,12 @@ func denied(r *http.Request, l *redis_rate.Limiter, key string) (time.Duration, 
 }
 
 func remoteIP(r *http.Request) string {
+	// ponytail: XFF is client-spoofable unless a trusted LB overwrites it
+	// — fine for v1; verify at the LB when one fronts the API.
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ip, _, _ := strings.Cut(xff, ",")
+		return strings.TrimSpace(ip)
+	}
 	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return host
 	}

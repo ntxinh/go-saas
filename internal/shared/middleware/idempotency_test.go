@@ -106,3 +106,23 @@ func TestIdempotency_DifferentKeysBothRun(t *testing.T) {
 	}
 	assert.Equal(t, int32(2), calls.Load())
 }
+
+func TestIdempotency_PanicClearsMarker(t *testing.T) {
+	rdb, _ := testutil.Redis(t)
+	user := uuid.New()
+	srv := middleware.Recover()(middleware.Idempotency(rdb)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			panic("boom")
+		})))
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, authedPost(t, user, "panic-key"))
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"))
+
+	// Panic must not leave a "processing" marker — a retry gets a fresh run.
+	exists, err := rdb.Exists(context.Background(),
+		"idem:"+user.String()+":POST:/v1/orgs:panic-key").Result()
+	require.NoError(t, err)
+	assert.Zero(t, exists, "marker must be deleted on panic")
+}

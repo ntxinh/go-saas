@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -55,6 +56,16 @@ func Idempotency(rdb *redis.Client) func(http.Handler) http.Handler {
 				replay(w, r, rdb, rkey)
 				return
 			}
+			// A handler panic must not strand the "processing" marker for
+			// the full TTL: delete it and re-panic so the outer Recover
+			// middleware turns it into a 500.
+			defer func() {
+				if p := recover(); p != nil {
+					// Background ctx — r.Context() may be cancelled during unwind.
+					_ = rdb.Del(context.Background(), rkey).Err()
+					panic(p)
+				}
+			}()
 
 			rec := &statusRecorder{ResponseWriter: w}
 			next.ServeHTTP(rec, r)

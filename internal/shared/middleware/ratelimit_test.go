@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis_rate/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -76,4 +78,45 @@ func TestRateLimit_KeysByUserWhenAuthed(t *testing.T) {
 	// redis_rate prefixes keys with "rate:".
 	_, err := rdb.Get(context.Background(), "rate:rl:u:"+user.String()).Result()
 	assert.NoError(t, err, "expected user-keyed limiter entry")
+}
+
+func TestRateLimit_AuthedChainUsesUserKey(t *testing.T) {
+	rdb, _ := testutil.Redis(t)
+	jwks, keys := newJWKS(t)
+	limiter := redis_rate.NewLimiter(rdb)
+	user := uuid.New()
+
+	// Production chain from wire.go: ip bucket → authn → upsert → user bucket.
+	mux := chi.NewRouter()
+	mux.Use(middleware.RateLimit(limiter))
+	mux.Use(newAuthn(t, jwks.URL))
+	mux.Use(middleware.UpsertUser(func(context.Context, uuid.UUID, string) error { return nil }))
+	mux.Use(middleware.RateLimit(limiter))
+	mux.Get("/v1/x", okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
+	req.Header.Set("Authorization", "Bearer "+
+		sign(t, jwt.SigningMethodES256, keys.ec, validClaims(user)))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNoContent, rec.Code)
+
+	ctx := context.Background()
+	_, err := rdb.Get(ctx, "rate:rl:u:"+user.String()).Result()
+	assert.NoError(t, err, "expected user-keyed limiter entry")
+	_, err = rdb.Get(ctx, "rate:rl:ip:192.0.2.1").Result()
+	assert.NoError(t, err, "expected ip-keyed limiter entry too")
+}
+
+func TestRateLimit_XForwardedFor(t *testing.T) {
+	rdb, _ := testutil.Redis(t)
+	srv := ratelimitSrv(rdb, http.HandlerFunc(okHandler))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/x", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.1")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNoContent, rec.Code)
+	_, err := rdb.Get(context.Background(), "rate:rl:ip:203.0.113.7").Result()
+	assert.NoError(t, err, "expected first XFF entry used as key")
 }

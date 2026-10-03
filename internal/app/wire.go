@@ -140,11 +140,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 
 	r.Route("/v1", func(r chi.Router) {
 		// Spec §4 order: ratelimit → authn → idempotency → tenant → rbac.
-		// RateLimit runs before Authn so it keys on ip (user key only
-		// kicks in if some outer middleware already put one in ctx).
-		r.Use(middleware.RateLimit(redis_rate.NewLimiter(rdb)))
+		// RateLimit runs twice: pre-authn it keys on IP (protects public
+		// traffic); post-UpsertUser the user is in ctx so authed requests
+		// also consume their own rl:u: window.
+		limiter := redis_rate.NewLimiter(rdb)
+		r.Use(middleware.RateLimit(limiter))
 		r.Use(middleware.Authn(keys, cfg.Issuer(), "authenticated"))
 		r.Use(middleware.UpsertUser(userSvc.Sync))
+		r.Use(middleware.RateLimit(limiter))
 		r.Use(middleware.Idempotency(rdb))
 		authFeat.RegisterRoutes(r)
 		orgsFeat.RegisterRoutes(r)
