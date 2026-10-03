@@ -11,8 +11,8 @@ import (
 type meResponse struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
-	// Orgs stays [] until the orgs feature fills it (Task 5); never null.
-	Orgs []any `json:"orgs"`
+	// Orgs is never null — empty memberships marshal as [].
+	Orgs []Org `json:"orgs"`
 }
 
 func (f *Feature) me(w http.ResponseWriter, r *http.Request) {
@@ -26,9 +26,17 @@ func (f *Feature) me(w http.ResponseWriter, r *http.Request) {
 		errs.Write(w, err)
 		return
 	}
+	orgs, err := f.orgs(r.Context(), id)
+	if err != nil {
+		errs.Write(w, err)
+		return
+	}
+	if orgs == nil {
+		orgs = []Org{}
+	}
 	server.WriteJSON(w, http.StatusOK, meResponse{
 		ID:    id.String(),
 		Email: email,
-		Orgs:  []any{},
+		Orgs:  orgs,
 	})
 }

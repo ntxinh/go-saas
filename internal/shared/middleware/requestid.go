@@ -17,6 +17,7 @@ const (
 	loggerKey ctxKey = iota
 	ctxUser
 	ctxTenant
+	ctxRole
 )
 
 // RequestID assigns a request id (chi) and stores a logger carrying it in ctx.

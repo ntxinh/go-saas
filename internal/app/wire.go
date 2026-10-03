@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/exodia/go-saas/internal/features/auth"
+	"github.com/exodia/go-saas/internal/features/orgs"
 	"github.com/exodia/go-saas/internal/features/users"
 	"github.com/exodia/go-saas/internal/shared/config"
 	"github.com/exodia/go-saas/internal/shared/database"
@@ -44,16 +45,30 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	}
 
 	userSvc := users.NewService(users.NewRepo(pool), cipher)
-	authFeat := auth.New(func(ctx context.Context, id uuid.UUID) (string, error) {
-		p, err := userSvc.Profile(ctx, id)
-		return p.Email, err
-	})
-
+	orgSvc := orgs.NewService(pool, nil) // events publisher lands in Task 5
+	authFeat := auth.New(
+		func(ctx context.Context, id uuid.UUID) (string, error) {
+			p, err := userSvc.Profile(ctx, id)
+			return p.Email, err
+		},
+		func(ctx context.Context, id uuid.UUID) ([]auth.Org, error) {
+			refs, err := orgSvc.OrgsOf(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]auth.Org, len(refs))
+			for i, o := range refs {
+				out[i] = auth.Org{TenantID: o.TenantID, Name: o.Name, Role: o.Role}
+			}
+			return out, nil
+		})
+	orgsFeat := orgs.NewFeature(orgSvc)
 	r := server.New(cfg, log)
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.Authn(keys, cfg.Issuer(), "authenticated"))
 		r.Use(middleware.UpsertUser(userSvc.Sync))
 		authFeat.RegisterRoutes(r)
+		orgsFeat.RegisterRoutes(r)
 	})
 	return r, nil
 }

@@ -1,0 +1,311 @@
+// Package orgs owns orgs + memberships: tenant resolution for the
+// middleware (as pool owner, bypassing RLS) and tenant-scoped CRUD that
+// always runs inside database.WithTenantTx.
+package orgs
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/exodia/go-saas/internal/features/orgs/sqlc"
+	"github.com/exodia/go-saas/internal/shared/database"
+	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/exodia/go-saas/internal/shared/middleware"
+)
+
+// Org is a tenant.
+type Org struct {
+	TenantID  uuid.UUID `json:"tenant_id"`
+	Name      string    `json:"name"`
+	Plan      string    `json:"plan"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// OrgRef is a user's membership in an org — the shape /v1/me and
+// GET /v1/orgs return.
+type OrgRef struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Name     string    `json:"name"`
+	Role     string    `json:"role"`
+}
+
+// Member is a membership row.
+type Member struct {
+	UserID    uuid.UUID `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Publisher is the optional event seam — Task 5 wires the real events
+// publisher; nil means "don't publish".
+type Publisher interface {
+	Publish(ctx context.Context, topic string, payload any) error
+}
+
+// Service implements org use-cases. Tenant-scoped methods take the orgID
+// explicitly (the Tenant middleware has already verified membership);
+// they still run under WithTenantTx so RLS is the backstop.
+type Service struct {
+	pool *pgxpool.Pool
+	repo *Repo
+	pub  Publisher
+}
+
+// NewService builds the orgs service. pub may be nil.
+func NewService(pool *pgxpool.Pool, pub Publisher) *Service {
+	return &Service{pool: pool, repo: NewRepo(pool), pub: pub}
+}
+
+func orgFrom(o sqlc.Org) Org {
+	return Org{TenantID: o.TenantID.Bytes, Name: o.Name, Plan: o.Plan, CreatedAt: o.CreatedAt.Time}
+}
+
+func validRole(role string) bool {
+	return role == "owner" || role == "admin" || role == "member"
+}
+
+// Create inserts the org and the caller's owner membership in one tx.
+// It uses WithTx (no tenant exists yet) with explicit tenant_ids.
+func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string) (Org, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Org{}, errs.Validation(map[string]string{"name": "required"})
+	}
+	var org Org
+	err := database.WithTx(ctx, s.pool, func(tx pgx.Tx) error {
+		q := s.repo.withTx(tx)
+		row, err := q.q.CreateOrg(ctx, name)
+		if err != nil {
+			return fmt.Errorf("orgs: create: %w", err)
+		}
+		org = orgFrom(row)
+		return q.q.AddMember(ctx, sqlc.AddMemberParams{
+			TenantID: row.TenantID,
+			UserID:   pgUUID(userID),
+			Role:     "owner",
+		})
+	})
+	if err != nil {
+		return Org{}, err
+	}
+	s.publish(ctx, "org.created", org)
+	return org, nil
+}
+
+// IsMember resolves membership as the pool owner — deliberately outside
+// RLS, this is the resolution step the Tenant middleware calls.
+func (s *Service) IsMember(ctx context.Context, orgID, userID uuid.UUID) (string, bool) {
+	role, err := s.repo.q.MemberRole(ctx, sqlc.MemberRoleParams{
+		TenantID: pgUUID(orgID), UserID: pgUUID(userID),
+	})
+	if err != nil {
+		return "", false
+	}
+	return role, true
+}
+
+// OrgsOf lists the user's memberships as the pool owner (cross-tenant
+// by design — the user is asking for their own list).
+func (s *Service) OrgsOf(ctx context.Context, userID uuid.UUID) ([]OrgRef, error) {
+	rows, err := s.repo.q.ListUserOrgs(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, fmt.Errorf("orgs: list user orgs: %w", err)
+	}
+	out := make([]OrgRef, len(rows))
+	for i, r := range rows {
+		out[i] = OrgRef{TenantID: r.TenantID.Bytes, Name: r.Name, Role: r.Role}
+	}
+	return out, nil
+}
+
+// Get returns the org, scoped to its own tenant tx.
+func (s *Service) Get(ctx context.Context, orgID uuid.UUID) (Org, error) {
+	var org Org
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		row, err := s.repo.withTx(tx).q.GetOrg(ctx, pgUUID(orgID))
+		if err != nil {
+			return err
+		}
+		org = orgFrom(row)
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Org{}, errs.ErrNotFound
+	}
+	if err != nil {
+		return Org{}, fmt.Errorf("orgs: get: %w", err)
+	}
+	return org, nil
+}
+
+// Update renames the org inside its tenant tx.
+func (s *Service) Update(ctx context.Context, orgID uuid.UUID, name string) (Org, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Org{}, errs.Validation(map[string]string{"name": "required"})
+	}
+	var org Org
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		row, err := s.repo.withTx(tx).q.UpdateOrg(ctx, sqlc.UpdateOrgParams{
+			TenantID: pgUUID(orgID), Name: name,
+		})
+		if err != nil {
+			return err
+		}
+		org = orgFrom(row)
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Org{}, errs.ErrNotFound
+	}
+	if err != nil {
+		return Org{}, fmt.Errorf("orgs: update: %w", err)
+	}
+	return org, nil
+}
+
+// Members lists the org's memberships inside its tenant tx.
+func (s *Service) Members(ctx context.Context, orgID uuid.UUID) ([]Member, error) {
+	var out []Member
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		rows, err := s.repo.withTx(tx).q.ListMembers(ctx, pgUUID(orgID))
+		if err != nil {
+			return err
+		}
+		out = make([]Member, len(rows))
+		for i, r := range rows {
+			out[i] = Member{UserID: r.UserID.Bytes, Role: r.Role, CreatedAt: r.CreatedAt.Time}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("orgs: members: %w", err)
+	}
+	return out, nil
+}
+
+// AddMember inserts a membership inside the org's tenant tx. Duplicates
+// are 409; unknown users 422.
+func (s *Service) AddMember(ctx context.Context, orgID, userID uuid.UUID, role string) error {
+	if !validRole(role) {
+		return errs.Validation(map[string]string{"role": "must be owner, admin or member"})
+	}
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		return s.repo.withTx(tx).q.AddMember(ctx, sqlc.AddMemberParams{
+			TenantID: pgUUID(orgID), UserID: pgUUID(userID), Role: role,
+		})
+	})
+	var pgErr *pgconn.PgError
+	switch {
+	case errors.As(err, &pgErr) && pgErr.Code == "23505":
+		return errs.ErrConflict
+	case errors.As(err, &pgErr) && pgErr.Code == "23503":
+		return errs.Validation(map[string]string{"user_id": "unknown user"})
+	case err != nil:
+		return fmt.Errorf("orgs: add member: %w", err)
+	}
+	s.publish(ctx, "org.member_added", Member{UserID: userID, Role: role})
+	return nil
+}
+
+// RemoveMember deletes a membership. Refuses to remove the org's last
+// owner (counted inside the same tenant tx).
+func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) error {
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		q := s.repo.withTx(tx).q
+		if err := s.guardLastOwner(ctx, q, orgID, userID, ""); err != nil {
+			return err
+		}
+		n, err := q.RemoveMember(ctx, sqlc.RemoveMemberParams{
+			TenantID: pgUUID(orgID), UserID: pgUUID(userID),
+		})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return errs.ErrNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(ctx, "org.member_removed", Member{UserID: userID})
+	return nil
+}
+
+// ChangeRole updates a member's role. Refuses to demote the last owner.
+func (s *Service) ChangeRole(ctx context.Context, orgID, userID uuid.UUID, role string) error {
+	if !validRole(role) {
+		return errs.Validation(map[string]string{"role": "must be owner, admin or member"})
+	}
+	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
+		q := s.repo.withTx(tx).q
+		if err := s.guardLastOwner(ctx, q, orgID, userID, role); err != nil {
+			return err
+		}
+		n, err := q.ChangeRole(ctx, sqlc.ChangeRoleParams{
+			TenantID: pgUUID(orgID), UserID: pgUUID(userID), Role: role,
+		})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return errs.ErrNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(ctx, "org.member_role_changed", Member{UserID: userID, Role: role})
+	return nil
+}
+
+// guardLastOwner returns ErrValidation when the target is an owner, the
+// change removes or demotes them, and no other owner remains. newRole
+// "" means removal.
+func (s *Service) guardLastOwner(ctx context.Context, q *sqlc.Queries, orgID, userID uuid.UUID, newRole string) error {
+	if newRole == "owner" {
+		return nil
+	}
+	cur, err := q.MemberRole(ctx, sqlc.MemberRoleParams{
+		TenantID: pgUUID(orgID), UserID: pgUUID(userID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // delete/update path reports not-found itself
+	}
+	if err != nil {
+		return err
+	}
+	if cur != "owner" {
+		return nil
+	}
+	owners, err := q.CountOwners(ctx, pgUUID(orgID))
+	if err != nil {
+		return err
+	}
+	if owners <= 1 {
+		return errs.Validation(map[string]string{"role": "cannot remove the last owner"})
+	}
+	return nil
+}
+
+// publish emits an event when a publisher is wired; failures are logged
+// and swallowed — events are best-effort until Task 5 lands.
+func (s *Service) publish(ctx context.Context, topic string, payload any) {
+	if s.pub == nil {
+		return
+	}
+	if err := s.pub.Publish(ctx, topic, payload); err != nil {
+		middleware.Logger(ctx).Warn("event publish failed", "topic", topic, "err", err)
+	}
+}

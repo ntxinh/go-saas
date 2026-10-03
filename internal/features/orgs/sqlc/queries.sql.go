@@ -7,17 +7,205 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const ping = `-- name: Ping :one
-
-SELECT 1
+const addMember = `-- name: AddMember :exec
+INSERT INTO memberships(tenant_id, user_id, role) VALUES($1, $2, $3)
 `
 
-// Placeholder: Task 4 creates orgs/memberships and replaces this.
-func (q *Queries) Ping(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, ping)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
+type AddMemberParams struct {
+	TenantID pgtype.UUID
+	UserID   pgtype.UUID
+	Role     string
+}
+
+func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) error {
+	_, err := q.db.Exec(ctx, addMember, arg.TenantID, arg.UserID, arg.Role)
+	return err
+}
+
+const changeRole = `-- name: ChangeRole :execrows
+UPDATE memberships SET role = $3 WHERE tenant_id = $1 AND user_id = $2
+`
+
+type ChangeRoleParams struct {
+	TenantID pgtype.UUID
+	UserID   pgtype.UUID
+	Role     string
+}
+
+func (q *Queries) ChangeRole(ctx context.Context, arg ChangeRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, changeRole, arg.TenantID, arg.UserID, arg.Role)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const countOwners = `-- name: CountOwners :one
+SELECT count(*) FROM memberships WHERE tenant_id = $1 AND role = 'owner'
+`
+
+func (q *Queries) CountOwners(ctx context.Context, tenantID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countOwners, tenantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createOrg = `-- name: CreateOrg :one
+
+INSERT INTO orgs(name) VALUES($1)
+RETURNING tenant_id, name, plan, created_at
+`
+
+// sqlc queries for the orgs feature. Tenant-scoped statements run inside
+// WithTenantTx (RLS filters by app.current_tenant); membership resolution
+// (MemberRole, ListUserOrgs) deliberately runs as the pool owner.
+func (q *Queries) CreateOrg(ctx context.Context, name string) (Org, error) {
+	row := q.db.QueryRow(ctx, createOrg, name)
+	var i Org
+	err := row.Scan(
+		&i.TenantID,
+		&i.Name,
+		&i.Plan,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOrg = `-- name: GetOrg :one
+SELECT tenant_id, name, plan, created_at FROM orgs WHERE tenant_id = $1
+`
+
+func (q *Queries) GetOrg(ctx context.Context, tenantID pgtype.UUID) (Org, error) {
+	row := q.db.QueryRow(ctx, getOrg, tenantID)
+	var i Org
+	err := row.Scan(
+		&i.TenantID,
+		&i.Name,
+		&i.Plan,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listMembers = `-- name: ListMembers :many
+SELECT user_id, role, created_at FROM memberships
+WHERE tenant_id = $1 ORDER BY created_at, user_id
+`
+
+type ListMembersRow struct {
+	UserID    pgtype.UUID
+	Role      string
+	CreatedAt pgtype.Timestamptz
+}
+
+func (q *Queries) ListMembers(ctx context.Context, tenantID pgtype.UUID) ([]ListMembersRow, error) {
+	rows, err := q.db.Query(ctx, listMembers, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersRow
+	for rows.Next() {
+		var i ListMembersRow
+		if err := rows.Scan(&i.UserID, &i.Role, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserOrgs = `-- name: ListUserOrgs :many
+SELECT m.tenant_id, o.name, m.role FROM memberships m
+JOIN orgs o ON o.tenant_id = m.tenant_id
+WHERE m.user_id = $1 ORDER BY o.name
+`
+
+type ListUserOrgsRow struct {
+	TenantID pgtype.UUID
+	Name     string
+	Role     string
+}
+
+func (q *Queries) ListUserOrgs(ctx context.Context, userID pgtype.UUID) ([]ListUserOrgsRow, error) {
+	rows, err := q.db.Query(ctx, listUserOrgs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserOrgsRow
+	for rows.Next() {
+		var i ListUserOrgsRow
+		if err := rows.Scan(&i.TenantID, &i.Name, &i.Role); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const memberRole = `-- name: MemberRole :one
+SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2
+`
+
+type MemberRoleParams struct {
+	TenantID pgtype.UUID
+	UserID   pgtype.UUID
+}
+
+func (q *Queries) MemberRole(ctx context.Context, arg MemberRoleParams) (string, error) {
+	row := q.db.QueryRow(ctx, memberRole, arg.TenantID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
+const removeMember = `-- name: RemoveMember :execrows
+DELETE FROM memberships WHERE tenant_id = $1 AND user_id = $2
+`
+
+type RemoveMemberParams struct {
+	TenantID pgtype.UUID
+	UserID   pgtype.UUID
+}
+
+func (q *Queries) RemoveMember(ctx context.Context, arg RemoveMemberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeMember, arg.TenantID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateOrg = `-- name: UpdateOrg :one
+UPDATE orgs SET name = $2 WHERE tenant_id = $1
+RETURNING tenant_id, name, plan, created_at
+`
+
+type UpdateOrgParams struct {
+	TenantID pgtype.UUID
+	Name     string
+}
+
+func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Org, error) {
+	row := q.db.QueryRow(ctx, updateOrg, arg.TenantID, arg.Name)
+	var i Org
+	err := row.Scan(
+		&i.TenantID,
+		&i.Name,
+		&i.Plan,
+		&i.CreatedAt,
+	)
+	return i, err
 }

@@ -8,6 +8,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Membership struct {
+	TenantID  pgtype.UUID
+	UserID    pgtype.UUID
+	Role      string
+	CreatedAt pgtype.Timestamptz
+}
+
+type Org struct {
+	TenantID  pgtype.UUID
+	Name      string
+	Plan      string
+	CreatedAt pgtype.Timestamptz
+}
+
 type User struct {
 	ID          pgtype.UUID
 	Email       string

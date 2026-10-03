@@ -8,15 +8,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// Feature is the auth feature module. profile resolves the caller's
-// account email; it is a func (not *users.Service) because features may
-// not import each other — wire.go adapts users.Service.Profile.
-type Feature struct {
-	profile func(ctx context.Context, id uuid.UUID) (string, error)
+// Org is the user's membership in a tenant, as embedded in /v1/me.
+// Declared here (not imported from orgs) because features may not
+// import each other — wire.go adapts orgs.Service.OrgsOf.
+type Org struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Name     string    `json:"name"`
+	Role     string    `json:"role"`
 }
 
-func New(profile func(ctx context.Context, id uuid.UUID) (string, error)) *Feature {
-	return &Feature{profile: profile}
+// Feature is the auth feature module. profile resolves the caller's
+// account email; orgs lists their memberships. Both are funcs (not
+// concrete services) because wire.go adapts them.
+type Feature struct {
+	profile func(ctx context.Context, id uuid.UUID) (string, error)
+	orgs    func(ctx context.Context, id uuid.UUID) ([]Org, error)
+}
+
+func New(
+	profile func(ctx context.Context, id uuid.UUID) (string, error),
+	orgs func(ctx context.Context, id uuid.UUID) ([]Org, error),
+) *Feature {
+	return &Feature{profile: profile, orgs: orgs}
 }
 
 // RegisterRoutes mounts the feature's routes on r. Callers mount under
