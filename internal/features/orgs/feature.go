@@ -28,6 +28,11 @@ func (f *Feature) RegisterRoutes(r chi.Router) {
 			r.Post("/members", f.addMember)
 			r.Delete("/members/{userID}", f.removeMember)
 			r.Patch("/members/{userID}", f.changeRole)
+			r.Post("/invites", f.invite)
+			r.Delete("/invites/{inviteID}", f.revokeInvite)
 		})
 	})
+	// Accept carries its own capability (the token resolves the org), so
+	// it mounts outside the tenant-middleware subtree.
+	r.Post("/invites/{token}/accept", f.acceptInvite)
 }

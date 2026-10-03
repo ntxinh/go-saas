@@ -5,19 +5,24 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 
 	"github.com/exodia/go-saas/internal/features/auth"
 	"github.com/exodia/go-saas/internal/features/orgs"
 	"github.com/exodia/go-saas/internal/features/users"
 	"github.com/exodia/go-saas/internal/shared/config"
 	"github.com/exodia/go-saas/internal/shared/database"
+	"github.com/exodia/go-saas/internal/shared/events"
+	"github.com/exodia/go-saas/internal/shared/mail"
 	"github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/exodia/go-saas/internal/shared/queue"
 	"github.com/exodia/go-saas/internal/shared/security"
 	"github.com/exodia/go-saas/internal/shared/server"
 )
@@ -44,8 +49,40 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		}
 	}
 
+	// Redis + asynq: the API enqueues; the Task-6 worker consumes.
+	rdb, err := queue.Redis(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	asynqClient := queue.NewClient(rdb)
+
+	// Events bus: MemberInvited → durable email task (the only wired
+	// subscriber; other events are publish-side contracts for now).
+	router, err := events.NewRouter(log)
+	if err != nil {
+		return nil, fmt.Errorf("app: events: %w", err)
+	}
+	events.Subscribe(router, events.TopicMemberInvited, func(ctx context.Context, payload []byte) error {
+		var p events.MemberInvited
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return err
+		}
+		return queue.Enqueue(ctx, asynqClient, queue.TaskEmailInvite, p)
+	})
+
+	// Scheduled maintenance: hourly invite-expiry sweep. The handler
+	// (worker-side, orgs.Service.ExpireStale) lands with Task 6.
+	sched := asynq.NewScheduler(queue.RedisOpt(rdb), nil)
+	if _, err := sched.Register("@hourly", asynq.NewTask(queue.TaskInviteExpirySweep, nil)); err != nil {
+		return nil, fmt.Errorf("app: scheduler: %w", err)
+	}
+
+	// Mail: dev+SMTP → Mailpit; otherwise Resend when a key is set.
+	mailer := mailerFor(cfg)
+	_ = mailer // Task 6 hands it to the email:invite handler
+
 	userSvc := users.NewService(users.NewRepo(pool), cipher)
-	orgSvc := orgs.NewService(pool, nil) // events publisher lands in Task 5
+	orgSvc := orgs.NewService(pool, router.Publisher())
 	authFeat := auth.New(
 		func(ctx context.Context, id uuid.UUID) (string, error) {
 			p, err := userSvc.Profile(ctx, id)
@@ -64,6 +101,25 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		})
 	orgsFeat := orgs.NewFeature(orgSvc)
 	r := server.New(cfg, log)
+
+	// The router and scheduler run until ctx is done; Close runs their
+	// shutdown when the process is exiting anyway.
+	go func() {
+		<-ctx.Done()
+		sched.Shutdown()
+		_ = router.Close()
+	}()
+	go func() {
+		if err := router.Run(ctx); err != nil {
+			log.Error("events router stopped", "err", err)
+		}
+	}()
+	go func() {
+		if err := sched.Run(); err != nil {
+			log.Error("scheduler stopped", "err", err)
+		}
+	}()
+
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.Authn(keys, cfg.Issuer(), "authenticated"))
 		r.Use(middleware.UpsertUser(userSvc.Sync))
@@ -71,4 +127,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		orgsFeat.RegisterRoutes(r)
 	})
 	return r, nil
+}
+
+func mailerFor(cfg *config.Config) mail.Sender {
+	if cfg.Env == "dev" && cfg.SMTPAddr != "" {
+		return mail.NewSMTP(cfg.SMTPAddr, cfg.MailFrom)
+	}
+	if cfg.ResendAPIKey != "" {
+		return mail.NewResend(cfg.ResendAPIKey, cfg.MailFrom)
+	}
+	return nil
 }

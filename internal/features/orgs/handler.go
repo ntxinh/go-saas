@@ -136,3 +136,46 @@ func (f *Feature) changeRole(w http.ResponseWriter, r *http.Request) {
 	}
 	server.WriteJSON(w, http.StatusOK, Member{UserID: userID, Role: req.Role})
 }
+
+func (f *Feature) invite(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	callerRole, _ := middleware.Role(ctx)
+	inviterEmail, _ := middleware.Email(ctx)
+	var req struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	inv, err := f.svc.Invite(ctx, orgID(r), inviterEmail, callerRole, req.Email, req.Role)
+	if err != nil {
+		errs.Write(w, err)
+		return
+	}
+	server.WriteJSON(w, http.StatusCreated, inv)
+}
+
+func (f *Feature) acceptInvite(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, _ := middleware.UserID(ctx)
+	email, _ := middleware.Email(ctx)
+	if err := f.svc.Accept(ctx, chi.URLParam(r, "token"), userID, email); err != nil {
+		errs.Write(w, err)
+		return
+	}
+	server.WriteJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
+}
+
+func (f *Feature) revokeInvite(w http.ResponseWriter, r *http.Request) {
+	inviteID, err := uuid.Parse(chi.URLParam(r, "inviteID"))
+	if err != nil {
+		errs.Write(w, errs.ErrNotFound)
+		return
+	}
+	if err := f.svc.RevokeInvite(r.Context(), orgID(r), inviteID); err != nil {
+		errs.Write(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

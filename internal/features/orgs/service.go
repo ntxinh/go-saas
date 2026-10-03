@@ -18,6 +18,7 @@ import (
 	"github.com/exodia/go-saas/internal/features/orgs/sqlc"
 	"github.com/exodia/go-saas/internal/shared/database"
 	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/exodia/go-saas/internal/shared/events"
 	"github.com/exodia/go-saas/internal/shared/middleware"
 )
 
@@ -238,7 +239,7 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) err
 	if err != nil {
 		return err
 	}
-	s.publish(ctx, "org.member_removed", Member{UserID: userID})
+	s.publish(ctx, events.TopicMemberRemoved, events.MemberRemoved{OrgID: orgID, UserID: userID})
 	return nil
 }
 
@@ -266,7 +267,7 @@ func (s *Service) ChangeRole(ctx context.Context, orgID, userID uuid.UUID, role 
 	if err != nil {
 		return err
 	}
-	s.publish(ctx, "org.member_role_changed", Member{UserID: userID, Role: role})
+	s.publish(ctx, events.TopicRoleChanged, events.RoleChanged{OrgID: orgID, UserID: userID, Role: role})
 	return nil
 }
 

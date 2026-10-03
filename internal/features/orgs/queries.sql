@@ -36,3 +36,26 @@ UPDATE memberships SET role = $3 WHERE tenant_id = $1 AND user_id = $2;
 
 -- name: CountOwners :one
 SELECT count(*) FROM memberships WHERE tenant_id = $1 AND role = 'owner';
+
+-- Invites. CreateInvite/RevokeInvite run inside the org's tenant tx;
+-- InviteByToken deliberately runs as the pool owner (the token is the
+-- capability — Accept resolves the tenant from the row).
+
+-- name: CreateInvite :one
+INSERT INTO invites(tenant_id, email, role, token, expires_at)
+VALUES($1, $2, $3, $4, $5)
+RETURNING id, tenant_id, email, role, token, accepted_at, expires_at, created_at;
+
+-- name: InviteByToken :one
+SELECT id, tenant_id, email, role, token, accepted_at, expires_at, created_at
+FROM invites WHERE token = $1;
+
+-- name: AcceptInvite :execrows
+UPDATE invites SET accepted_at = now()
+WHERE token = $1 AND accepted_at IS NULL;
+
+-- name: RevokeInvite :execrows
+DELETE FROM invites WHERE id = $1 AND tenant_id = $2;
+
+-- name: ExpireStaleInvites :execrows
+DELETE FROM invites WHERE accepted_at IS NULL AND expires_at < now();

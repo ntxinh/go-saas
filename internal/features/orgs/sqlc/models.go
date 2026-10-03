@@ -8,6 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Invite struct {
+	ID         pgtype.UUID
+	TenantID   pgtype.UUID
+	Email      string
+	Role       string
+	Token      string
+	AcceptedAt pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
 type Membership struct {
 	TenantID  pgtype.UUID
 	UserID    pgtype.UUID

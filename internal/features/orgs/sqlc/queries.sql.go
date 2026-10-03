@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acceptInvite = `-- name: AcceptInvite :execrows
+UPDATE invites SET accepted_at = now()
+WHERE token = $1 AND accepted_at IS NULL
+`
+
+func (q *Queries) AcceptInvite(ctx context.Context, token string) (int64, error) {
+	result, err := q.db.Exec(ctx, acceptInvite, token)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const addMember = `-- name: AddMember :exec
 INSERT INTO memberships(tenant_id, user_id, role) VALUES($1, $2, $3)
 `
@@ -55,6 +68,46 @@ func (q *Queries) CountOwners(ctx context.Context, tenantID pgtype.UUID) (int64,
 	return count, err
 }
 
+const createInvite = `-- name: CreateInvite :one
+
+INSERT INTO invites(tenant_id, email, role, token, expires_at)
+VALUES($1, $2, $3, $4, $5)
+RETURNING id, tenant_id, email, role, token, accepted_at, expires_at, created_at
+`
+
+type CreateInviteParams struct {
+	TenantID  pgtype.UUID
+	Email     string
+	Role      string
+	Token     string
+	ExpiresAt pgtype.Timestamptz
+}
+
+// Invites. CreateInvite/RevokeInvite run inside the org's tenant tx;
+// InviteByToken deliberately runs as the pool owner (the token is the
+// capability — Accept resolves the tenant from the row).
+func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (Invite, error) {
+	row := q.db.QueryRow(ctx, createInvite,
+		arg.TenantID,
+		arg.Email,
+		arg.Role,
+		arg.Token,
+		arg.ExpiresAt,
+	)
+	var i Invite
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.Role,
+		&i.Token,
+		&i.AcceptedAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createOrg = `-- name: CreateOrg :one
 
 INSERT INTO orgs(name) VALUES($1)
@@ -76,6 +129,18 @@ func (q *Queries) CreateOrg(ctx context.Context, name string) (Org, error) {
 	return i, err
 }
 
+const expireStaleInvites = `-- name: ExpireStaleInvites :execrows
+DELETE FROM invites WHERE accepted_at IS NULL AND expires_at < now()
+`
+
+func (q *Queries) ExpireStaleInvites(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, expireStaleInvites)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getOrg = `-- name: GetOrg :one
 SELECT tenant_id, name, plan, created_at FROM orgs WHERE tenant_id = $1
 `
@@ -87,6 +152,27 @@ func (q *Queries) GetOrg(ctx context.Context, tenantID pgtype.UUID) (Org, error)
 		&i.TenantID,
 		&i.Name,
 		&i.Plan,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const inviteByToken = `-- name: InviteByToken :one
+SELECT id, tenant_id, email, role, token, accepted_at, expires_at, created_at
+FROM invites WHERE token = $1
+`
+
+func (q *Queries) InviteByToken(ctx context.Context, token string) (Invite, error) {
+	row := q.db.QueryRow(ctx, inviteByToken, token)
+	var i Invite
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.Role,
+		&i.Token,
+		&i.AcceptedAt,
+		&i.ExpiresAt,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -182,6 +268,23 @@ type RemoveMemberParams struct {
 
 func (q *Queries) RemoveMember(ctx context.Context, arg RemoveMemberParams) (int64, error) {
 	result, err := q.db.Exec(ctx, removeMember, arg.TenantID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeInvite = `-- name: RevokeInvite :execrows
+DELETE FROM invites WHERE id = $1 AND tenant_id = $2
+`
+
+type RevokeInviteParams struct {
+	ID       pgtype.UUID
+	TenantID pgtype.UUID
+}
+
+func (q *Queries) RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeInvite, arg.ID, arg.TenantID)
 	if err != nil {
 		return 0, err
 	}
