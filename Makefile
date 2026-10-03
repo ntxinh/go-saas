@@ -4,10 +4,13 @@ export DOCKER_HOST ?= unix:///run/user/$(shell id -u)/podman/podman.sock
 export TESTCONTAINERS_RYUK_DISABLED ?= true
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE ?= /run/user/$(shell id -u)/podman/podman.sock
 
-.PHONY: run test lint fmt migrate gen seed up down podman-env
+.PHONY: run worker test lint fmt migrate gen seed up down podman-env
 
 run:
 	$(GO) run ./cmd/api
+
+worker:
+	$(GO) run ./cmd/worker
 
 test:
 	$(GO) test -race ./...

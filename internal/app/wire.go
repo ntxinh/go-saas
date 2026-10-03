@@ -77,10 +77,6 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		return nil, fmt.Errorf("app: scheduler: %w", err)
 	}
 
-	// Mail: dev+SMTP → Mailpit; otherwise Resend when a key is set.
-	mailer := mailerFor(cfg)
-	_ = mailer // Task 6 hands it to the email:invite handler
-
 	userSvc := users.NewService(users.NewRepo(pool), cipher)
 	orgSvc := orgs.NewService(pool, router.Publisher())
 	authFeat := auth.New(
