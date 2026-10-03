@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/config"
 )
 
 // Redis connects to cfg.RedisURL. The same client backs asynq (Task 8

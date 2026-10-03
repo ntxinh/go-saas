@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/security"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/security"
 )
 
 // Profile is a decrypted users row. PII fields are "" when NULL in the db

@@ -3,9 +3,9 @@ package auth
 import (
 	"net/http"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/server"
 )
 
 type meResponse struct {

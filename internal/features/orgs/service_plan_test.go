@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // Free plan seats: owner + 2 members = 3 (the cap). The next Invite and

@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // MembershipChecker resolves a (orgID, userID) pair to the member's role.

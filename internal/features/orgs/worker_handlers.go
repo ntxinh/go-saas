@@ -10,8 +10,8 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	"github.com/exodia/go-saas/internal/shared/events"
-	"github.com/exodia/go-saas/internal/shared/mail"
+	"github.com/ntxinh/go-saas/internal/shared/events"
+	"github.com/ntxinh/go-saas/internal/shared/mail"
 )
 
 // HandleEmailInvite renders the invite email and sends it via sender.

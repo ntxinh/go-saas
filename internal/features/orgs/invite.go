@@ -14,10 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/exodia/go-saas/internal/features/orgs/sqlc"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/events"
+	"github.com/ntxinh/go-saas/internal/features/orgs/sqlc"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/events"
 )
 
 const inviteTTL = 7 * 24 * time.Hour

@@ -18,7 +18,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/config"
 )
 
 // Setup installs the W3C TraceContext propagator and a global tracer

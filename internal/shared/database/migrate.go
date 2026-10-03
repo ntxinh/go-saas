@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
-	"github.com/exodia/go-saas/migrations"
+	"github.com/ntxinh/go-saas/migrations"
 )
 
 // migrateLockKey serializes concurrent migrators (multiple replicas

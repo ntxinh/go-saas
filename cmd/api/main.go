@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/exodia/go-saas/internal/app"
-	"github.com/exodia/go-saas/internal/shared/config"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/otel"
-	"github.com/exodia/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/app"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/otel"
+	"github.com/ntxinh/go-saas/internal/shared/server"
 )
 
 func main() {

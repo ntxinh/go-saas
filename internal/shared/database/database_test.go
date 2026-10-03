@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/testutil"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/testutil"
 )
 
 func TestTenantTxSetsRoleAndGUC(t *testing.T) {

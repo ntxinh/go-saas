@@ -1,4 +1,4 @@
-module github.com/exodia/go-saas
+module github.com/ntxinh/go-saas
 
 go 1.26.0
 

@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/exodia/go-saas/internal/shared/config"
-	"github.com/exodia/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/server"
 	"github.com/stretchr/testify/assert"
 )
 

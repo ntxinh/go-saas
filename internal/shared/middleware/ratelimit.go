@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-redis/redis_rate/v10"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // RateLimit denies requests over two GCRA windows — PerSecond(10) burst and

@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/exodia/go-saas/internal/features/orgs/sqlc"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/events"
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/shared/plans"
+	"github.com/ntxinh/go-saas/internal/features/orgs/sqlc"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/events"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/plans"
 )
 
 // Org is a tenant.

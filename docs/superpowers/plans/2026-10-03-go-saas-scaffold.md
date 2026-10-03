@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Module path: `github.com/exodia/go-saas` (change everywhere if the remote differs).
+- Module path: `github.com/ntxinh/go-saas` (change everywhere if the remote differs).
 - Go ≥ 1.24. Tool deps via `go get -tool` (sqlc, goose, gofumpt, golangci-lint, govulncheck, go-arch-lint).
 - No `pkg/`, no `uber/fx`, no feature flags, no Stripe, no self-hosted CI runners.
 - Redis namespaces: `idem:` idempotency, `rl:` rate-limit, `asynq` internal. One Upstash DB.
@@ -54,7 +54,7 @@ deploy/Containerfile · deploy/compose.yml
 ### Task 1: Module skeleton — config, errs, server, health
 
 **Files:**
-- Create: `go.mod` (`go mod init github.com/exodia/go-saas && go mod edit -go=1.24`)
+- Create: `go.mod` (`go mod init github.com/ntxinh/go-saas && go mod edit -go=1.24`)
 - Create: `internal/shared/config/config.go`, `config_test.go`
 - Create: `internal/shared/errs/errs.go`, `errs_test.go`
 - Create: `internal/shared/server/respond.go`, `server.go`, `respond_test.go`

@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/features/orgs"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/testutil"
+	"github.com/ntxinh/go-saas/internal/features/orgs"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/testutil"
 )
 
 func newRouter(t *testing.T) (*chi.Mux, *pgxpool.Pool) {

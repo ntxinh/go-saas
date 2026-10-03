@@ -20,7 +20,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/exodia/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/database"
 )
 
 // Postgres starts a postgres:16-alpine container, runs all migrations,

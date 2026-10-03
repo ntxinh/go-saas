@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
 )
 
 type fakeChecker struct {

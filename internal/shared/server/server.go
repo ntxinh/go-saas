@@ -14,8 +14,8 @@ import (
 	"github.com/riandyrn/otelchi"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/exodia/go-saas/internal/shared/config"
-	appmw "github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	appmw "github.com/ntxinh/go-saas/internal/shared/middleware"
 )
 
 // New builds the application router.

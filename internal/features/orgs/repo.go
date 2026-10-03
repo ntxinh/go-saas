@@ -5,7 +5,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/exodia/go-saas/internal/features/orgs/sqlc"
+	"github.com/ntxinh/go-saas/internal/features/orgs/sqlc"
 )
 
 // Repo wraps the sqlc queries for orgs + memberships. It is bound to a

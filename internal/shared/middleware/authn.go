@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // supabaseClaims is the Supabase access-token shape we consume.

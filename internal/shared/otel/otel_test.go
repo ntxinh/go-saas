@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/exodia/go-saas/internal/shared/config"
-	"github.com/exodia/go-saas/internal/shared/otel"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/otel"
 )
 
 func testSpanContext() trace.SpanContext {

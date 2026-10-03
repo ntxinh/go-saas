@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/server"
 )
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {

@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/exodia/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/config"
 	"github.com/stretchr/testify/assert"
 )
 

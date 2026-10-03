@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/shared/server"
-	"github.com/exodia/go-saas/internal/testutil"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/testutil"
 )
 
 func authedPost(t *testing.T, user uuid.UUID, key string) *http.Request {

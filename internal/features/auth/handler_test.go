@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/features/auth"
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/features/auth"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
 )
 
 func mount(profile func(context.Context, uuid.UUID) (string, error), orgsOut []auth.Org) *chi.Mux {

@@ -18,8 +18,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	otelnoop "go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/exodia/go-saas/internal/shared/queue"
-	"github.com/exodia/go-saas/internal/testutil"
+	"github.com/ntxinh/go-saas/internal/shared/queue"
+	"github.com/ntxinh/go-saas/internal/testutil"
 )
 
 func inspector(rdbAddr string) *asynq.Inspector {

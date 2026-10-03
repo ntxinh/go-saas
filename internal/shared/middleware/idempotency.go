@@ -10,7 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 const idemTTL = 24 * time.Hour

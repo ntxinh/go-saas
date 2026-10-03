@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/features/users"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/errs"
-	"github.com/exodia/go-saas/internal/shared/security"
-	"github.com/exodia/go-saas/internal/testutil"
+	"github.com/ntxinh/go-saas/internal/features/users"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/security"
+	"github.com/ntxinh/go-saas/internal/testutil"
 )
 
 func newService(t *testing.T) (*users.Service, *pgxpool.Pool, context.Context) {

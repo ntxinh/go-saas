@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/features/orgs"
-	"github.com/exodia/go-saas/internal/shared/events"
-	"github.com/exodia/go-saas/internal/shared/queue"
+	"github.com/ntxinh/go-saas/internal/features/orgs"
+	"github.com/ntxinh/go-saas/internal/shared/events"
+	"github.com/ntxinh/go-saas/internal/shared/queue"
 )
 
 type sentMail struct{ to, subject, body string }

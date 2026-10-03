@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	usersqlc "github.com/exodia/go-saas/internal/features/users/sqlc"
+	usersqlc "github.com/ntxinh/go-saas/internal/features/users/sqlc"
 )
 
 // Repo wraps the sqlc queries for the users table (not tenant-scoped).

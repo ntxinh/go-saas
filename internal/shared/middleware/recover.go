@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // Recover catches handler panics, logs them on the request logger and

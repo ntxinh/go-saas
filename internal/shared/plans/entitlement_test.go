@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/exodia/go-saas/internal/shared/plans"
+	"github.com/ntxinh/go-saas/internal/shared/plans"
 )
 
 // Can is the static plan-entitlement table: free caps members at 3,

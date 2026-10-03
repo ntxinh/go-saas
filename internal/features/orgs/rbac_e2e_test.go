@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/exodia/go-saas/internal/features/orgs"
+	"github.com/ntxinh/go-saas/internal/features/orgs"
 )
 
 // Member → 403 on invite; promote to admin (RoleChanged → casbin g-line

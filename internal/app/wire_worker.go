@@ -7,10 +7,10 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	"github.com/exodia/go-saas/internal/features/orgs"
-	"github.com/exodia/go-saas/internal/shared/config"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/queue"
+	"github.com/ntxinh/go-saas/internal/features/orgs"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/queue"
 )
 
 // WireWorker builds the asynq server + mux: config → pool → redis →

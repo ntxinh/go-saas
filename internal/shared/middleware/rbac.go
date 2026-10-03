@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/exodia/go-saas/internal/shared/errs"
+	"github.com/ntxinh/go-saas/internal/shared/errs"
 )
 
 // Enforcer decides whether sub may act on obj inside dom. Satisfied by

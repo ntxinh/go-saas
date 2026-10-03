@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
 )
 
 // Feature is the orgs feature module.

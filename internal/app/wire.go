@@ -15,17 +15,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
-	"github.com/exodia/go-saas/internal/features/auth"
-	"github.com/exodia/go-saas/internal/features/orgs"
-	"github.com/exodia/go-saas/internal/features/users"
-	"github.com/exodia/go-saas/internal/shared/config"
-	"github.com/exodia/go-saas/internal/shared/database"
-	"github.com/exodia/go-saas/internal/shared/events"
-	"github.com/exodia/go-saas/internal/shared/mail"
-	"github.com/exodia/go-saas/internal/shared/middleware"
-	"github.com/exodia/go-saas/internal/shared/queue"
-	"github.com/exodia/go-saas/internal/shared/security"
-	"github.com/exodia/go-saas/internal/shared/server"
+	"github.com/ntxinh/go-saas/internal/features/auth"
+	"github.com/ntxinh/go-saas/internal/features/orgs"
+	"github.com/ntxinh/go-saas/internal/features/users"
+	"github.com/ntxinh/go-saas/internal/shared/config"
+	"github.com/ntxinh/go-saas/internal/shared/database"
+	"github.com/ntxinh/go-saas/internal/shared/events"
+	"github.com/ntxinh/go-saas/internal/shared/mail"
+	"github.com/ntxinh/go-saas/internal/shared/middleware"
+	"github.com/ntxinh/go-saas/internal/shared/queue"
+	"github.com/ntxinh/go-saas/internal/shared/security"
+	"github.com/ntxinh/go-saas/internal/shared/server"
 )
 
 // Wire builds the application router and returns a close func the caller
