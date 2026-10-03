@@ -21,7 +21,8 @@
 - **RLS model:** the pool connects as the migration/owner user. `WithTenantTx` runs `SET LOCAL ROLE app_user` + `SET LOCAL app.current_tenant`. `app_user` has NO `BYPASSRLS`. Queries as owner bypass RLS — that is correct for tenant-resolution and admin paths. Direct unscoped owner queries against tenant tables are a bug; reviewers reject them.
 - Every tenant table column is named `tenant_id` (orgs uses `tenant_id` for its id too — consistent policy code).
 - Error shape everywhere: RFC 9457 problem+json via `shared/errs`.
-- Podman locally: `DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock`, `TESTCONTAINERS_RYUK_DISABLED=true`, `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/run/podman/podman.sock`. CI uses Docker; keep envs unset there.
+- Podman locally: `DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock`, `TESTCONTAINERS_RYUK_DISABLED=true`, `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/run/user/$UID/podman/podman.sock`. CI uses Docker; keep envs unset there.
+- Go toolchain pinned via `mise.toml` (`go = "1.24.x"`); `mise install` before first build. Tool deps still via `go get -tool`.
 - TDD: failing test first for every behavior. Commit per task.
 
 ## File Map
@@ -46,7 +47,7 @@ internal/features/billing/{entitlement.go,entitlement_test.go}
 migrations/0001_roles.sql · 0002_users.sql · 0003_orgs.sql · 0004_invites.sql · 0005_casbin.sql
 deploy/Containerfile · deploy/compose.yml
 .env.example · Makefile · sqlc.yaml · .golangci.yml · .go-arch-lint.yml · casbin/model.conf
-.github/workflows/ci.yml · README.md
+.github/workflows/ci.yml · README.md · DESIGN.md · AGENTS.md · .editorconfig · mise.toml · lsp.json
 ```
 
 ---
@@ -60,6 +61,7 @@ deploy/Containerfile · deploy/compose.yml
 - Create: `internal/shared/server/respond.go`, `server.go`, `respond_test.go`
 - Create: `cmd/api/main.go`
 - Create: `.env.example`, `Makefile`, `.gitignore`, `deploy/Containerfile`
+- Create: `mise.toml`, `.editorconfig`, `lsp.json`, `AGENTS.md`, `README.md`, `DESIGN.md`, `docs/` (dir — design docs index lives in `docs/README.md`; specs/plans stay under `docs/superpowers/`)
 
 **Interfaces:**
 - Produces:
@@ -160,6 +162,41 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /out/app /app
 ENTRYPOINT ["/app"]
 ```
+
+Repo hygiene files:
+
+`mise.toml`:
+```toml
+[tools]
+go = "1.24"
+```
+
+`.editorconfig`:
+```ini
+root = true
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = tab
+indent_size = 4
+[*.{yml,yaml,json,toml,sql,md}]
+indent_style = space
+indent_size = 2
+```
+
+`lsp.json` (omp `xd://lsp` config — gopls; verify on first `reload *` since the schema is tool-internal):
+```json
+{ "servers": { "go": { "command": "gopls", "args": ["serve"] } } }
+```
+
+`AGENTS.md` — the agent contract, ≤40 lines: module layout; boundary rule (features import only `internal/shared/*` + self — `go-arch-lint` enforces); tenant rule (all tenant-table queries via `database.WithTenantTx`; owner-conn queries to tenant tables are bugs); error rule (return sentinels, `errs.Write` at the edge); test rule (TDD; `internal/testutil` containers; Podman env vars from Makefile `podman-env`); commands (`mise install`, `make test|lint|gen|migrate`); never commit `.env`, never hand-edit `internal/features/*/sqlc` (generated).
+
+`README.md` — quickstart: `mise install` → `cp .env.example .env` → `make up` (compose deps) → `make migrate run`; test with `make test` (auto Podman env); links to `DESIGN.md`, `docs/`, `docs/superpowers/specs/`.
+
+`DESIGN.md` — human-readable summary of the approved spec: pipeline diagram (middleware order), tenancy/RLS model incl. `app_user` role rationale, events-vs-asynq contract (at-most-once rule), PII, casbin model. One page; details cite the spec file.
+
+`docs/README.md` — index: `DESIGN.md`, spec, plan. `docs/` is the home for any future design docs.
 
 - [ ] **Step 4: Run** `go test ./... && go build ./...` → PASS.
 - [ ] **Step 5: Commit** `git add -A && git commit -m "feat: module skeleton — config, errs, server, health"`
