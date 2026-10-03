@@ -20,6 +20,12 @@ SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2;
 SELECT user_id, role, created_at FROM memberships
 WHERE tenant_id = $1 ORDER BY created_at, user_id;
 
+-- name: SeatCounts :one
+SELECT count(*) AS members,
+  (SELECT count(*) FROM invites i
+   WHERE i.tenant_id = $1 AND i.accepted_at IS NULL) AS pending_invites
+FROM memberships m WHERE m.tenant_id = $1;
+
 -- name: ListUserOrgs :many
 SELECT m.tenant_id, o.name, m.role FROM memberships m
 JOIN orgs o ON o.tenant_id = m.tenant_id

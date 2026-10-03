@@ -41,7 +41,7 @@ func (s *resend) Send(ctx context.Context, to, subject, html string) error {
 	if err != nil {
 		return fmt.Errorf("mail: send: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode/100 != 2 {
 		return fmt.Errorf("mail: resend: %s", res.Status)
 	}

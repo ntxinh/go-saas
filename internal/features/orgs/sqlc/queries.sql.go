@@ -291,6 +291,25 @@ func (q *Queries) RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int
 	return result.RowsAffected(), nil
 }
 
+const seatCounts = `-- name: SeatCounts :one
+SELECT count(*) AS members,
+  (SELECT count(*) FROM invites i
+   WHERE i.tenant_id = $1 AND i.accepted_at IS NULL) AS pending_invites
+FROM memberships m WHERE m.tenant_id = $1
+`
+
+type SeatCountsRow struct {
+	Members        int64
+	PendingInvites int64
+}
+
+func (q *Queries) SeatCounts(ctx context.Context, tenantID pgtype.UUID) (SeatCountsRow, error) {
+	row := q.db.QueryRow(ctx, seatCounts, tenantID)
+	var i SeatCountsRow
+	err := row.Scan(&i.Members, &i.PendingInvites)
+	return i, err
+}
+
 const updateOrg = `-- name: UpdateOrg :one
 UPDATE orgs SET name = $2 WHERE tenant_id = $1
 RETURNING tenant_id, name, plan, created_at

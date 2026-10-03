@@ -85,8 +85,8 @@ func TestProfileNullPII(t *testing.T) {
 
 	p, err := svc.Profile(ctx, id)
 	require.NoError(t, err)
-	assert.Equal(t, "", p.DisplayName)
-	assert.Equal(t, "", p.Phone)
+	assert.Empty(t, p.DisplayName)
+	assert.Empty(t, p.Phone)
 }
 
 func TestProfileNotFound(t *testing.T) {

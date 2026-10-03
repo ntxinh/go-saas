@@ -43,7 +43,7 @@ func TestDecryptWrongKeyFails(t *testing.T) {
 	blob, err := c1.Encrypt("secret")
 	require.NoError(t, err)
 	_, err = c2.Decrypt(blob)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDecryptTamperedFails(t *testing.T) {
@@ -54,14 +54,14 @@ func TestDecryptTamperedFails(t *testing.T) {
 	require.NoError(t, err)
 	blob[len(blob)-1] ^= 0xff
 	_, err = c.Decrypt(blob)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestNewRejectsBadKey(t *testing.T) {
 	_, err := security.New("not-hex")
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = security.New(strings.Repeat("ab", 16)) // 16 bytes, need 32
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestMayDecryptNilSafe(t *testing.T) {
@@ -70,7 +70,7 @@ func TestMayDecryptNilSafe(t *testing.T) {
 
 	got, err := c.MayDecrypt(nil)
 	require.NoError(t, err)
-	assert.Equal(t, "", got)
+	assert.Empty(t, got)
 
 	blob, err := c.Encrypt("Ada")
 	require.NoError(t, err)
@@ -81,5 +81,5 @@ func TestMayDecryptNilSafe(t *testing.T) {
 	var nilCipher *security.Cipher
 	got, err = nilCipher.MayDecrypt(blob)
 	require.NoError(t, err)
-	assert.Equal(t, "", got)
+	assert.Empty(t, got)
 }

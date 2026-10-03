@@ -35,6 +35,7 @@ func New(hexKey string) (*Cipher, error) {
 	return &Cipher{aead: aead}, nil
 }
 
+// Encrypt seals plaintext with AES-256-GCM (random nonce prepended).
 func (c *Cipher) Encrypt(plain string) ([]byte, error) {
 	nonce := make([]byte, c.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {

@@ -21,6 +21,20 @@ make test                        # go test -race ./...
 make podman-env                  # print the exports, e.g. for your shell
 ```
 
+## Commands
+
+| Command      | What |
+|--------------|------|
+| `make run` / `make worker` | API on :8080 / asynq worker |
+| `make seed`  | Fake users+orgs ( `-local` skips Supabase: `go run ./cmd/seed -local` ) |
+| `make lint`  | go vet + gofumpt check + golangci-lint |
+| `make arch`  | go-arch-lint: enforces the feature-slice boundary |
+| `make sec`   | govulncheck |
+| `make up-app`| api+worker containers on the deps stack (compose overlay) |
+
+CI (`.github/workflows/ci.yml`): lint → arch → test(-race, containers) →
+govulncheck → container build; images push to GHCR on `main`.
+
 ## Docs
 
 - [DESIGN.md](DESIGN.md) — one-page architecture summary

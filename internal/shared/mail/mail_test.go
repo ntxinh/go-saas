@@ -18,7 +18,10 @@ func TestResendSendsPayload(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/emails", r.URL.Path)
 		auth = r.Header.Get("Authorization")
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"msg_1"}`))
 	}))

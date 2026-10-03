@@ -70,7 +70,7 @@ func TestHandleEmailInviteMalformedSkipsRetry(t *testing.T) {
 
 	err := h(context.Background(), asynq.NewTask(queue.TaskEmailInvite, []byte("not-json")))
 
-	assert.ErrorIs(t, err, asynq.SkipRetry)
+	require.ErrorIs(t, err, asynq.SkipRetry)
 	assert.Empty(t, sender.calls)
 }
 
@@ -80,13 +80,13 @@ func TestHandleEmailInviteSendErrorRetries(t *testing.T) {
 
 	err := h(context.Background(), inviteTask(t, events.MemberInvited{OrgName: "A", Email: "x@y.z", Token: "t"}))
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.NotErrorIs(t, err, asynq.SkipRetry)
 }
 
 func TestHandleInviteExpirySweepDeletesStale(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "sweep-org")
 	require.NoError(t, err)
 

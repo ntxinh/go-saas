@@ -25,10 +25,10 @@ func (c *capPub) Publish(_ context.Context, topic string, payload any) error {
 }
 
 func TestInviteAcceptFlow(t *testing.T) {
-	svc, pool, ctx := newService(t)
+	_, pool, ctx := newService(t)
 	pub := &capPub{}
-	svc = orgs.NewService(pool, pub, nil)
-	owner := addUser(t, pool, ctx)
+	svc := orgs.NewService(pool, pub, nil)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
@@ -39,7 +39,7 @@ func TestInviteAcceptFlow(t *testing.T) {
 	assert.Len(t, inv.Token, 64) // 32B hex
 	assert.True(t, inv.ExpiresAt.After(time.Now().Add(6*24*time.Hour)))
 
-	invitee := addUser(t, pool, ctx)
+	invitee := addUser(ctx, t, pool)
 	require.NoError(t, svc.Accept(ctx, inv.Token, invitee, "new@x.y"))
 
 	role, ok := svc.IsMember(ctx, org.TenantID, invitee)
@@ -51,29 +51,29 @@ func TestInviteAcceptFlow(t *testing.T) {
 
 func TestRevokeInviteRemovesInvite(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
-	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
+	inv := invite(ctx, t, svc, org.TenantID, "new@x.y")
 
 	// owner can revoke; invite is gone afterwards (RBAC gates who may
 	// call this at the route level — see rbac_e2e_test).
 	require.NoError(t, svc.RevokeInvite(ctx, org.TenantID, inv.ID))
 	err = svc.Accept(ctx, inv.Token, uuid.New(), "new@x.y")
-	assert.ErrorIs(t, err, errs.ErrNotFound)
+	require.ErrorIs(t, err, errs.ErrNotFound)
 }
 
 func TestInviteRejectsBadRole(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
 	_, err = svc.Invite(ctx, org.TenantID, "o@x.y", "new@x.y", "owner")
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 }
 
-func invite(t *testing.T, svc *orgs.Service, ctx context.Context, orgID uuid.UUID, email string) orgs.Invite {
+func invite(ctx context.Context, t *testing.T, svc *orgs.Service, orgID uuid.UUID, email string) orgs.Invite {
 	t.Helper()
 	inv, err := svc.Invite(ctx, orgID, "o@x.y", email, "member")
 	require.NoError(t, err)
@@ -82,44 +82,44 @@ func invite(t *testing.T, svc *orgs.Service, ctx context.Context, orgID uuid.UUI
 
 func TestAcceptExpiredInvite(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
-	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
+	inv := invite(ctx, t, svc, org.TenantID, "new@x.y")
 
 	_, err = pool.Exec(ctx, "UPDATE invites SET expires_at = now() - interval '1h' WHERE id = $1", pgid(inv.ID))
 	require.NoError(t, err)
 
 	err = svc.Accept(ctx, inv.Token, uuid.New(), "new@x.y")
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 }
 
 func TestAcceptEmailMismatch(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
-	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
+	inv := invite(ctx, t, svc, org.TenantID, "new@x.y")
 
 	err = svc.Accept(ctx, inv.Token, uuid.New(), "other@x.y")
-	assert.ErrorIs(t, err, errs.ErrForbidden)
+	require.ErrorIs(t, err, errs.ErrForbidden)
 }
 
 func TestAcceptReplay(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
-	inv := invite(t, svc, ctx, org.TenantID, "new@x.y")
-	invitee := addUser(t, pool, ctx)
+	inv := invite(ctx, t, svc, org.TenantID, "new@x.y")
+	invitee := addUser(ctx, t, pool)
 
 	require.NoError(t, svc.Accept(ctx, inv.Token, invitee, "new@x.y"))
 	err = svc.Accept(ctx, inv.Token, invitee, "new@x.y")
-	assert.ErrorIs(t, err, errs.ErrConflict)
+	require.ErrorIs(t, err, errs.ErrConflict)
 }
 
 func TestAcceptUnknownToken(t *testing.T) {
 	svc, _, ctx := newService(t)
 	err := svc.Accept(ctx, "deadbeef", uuid.New(), "a@b.c")
-	assert.ErrorIs(t, err, errs.ErrNotFound)
+	require.ErrorIs(t, err, errs.ErrNotFound)
 }

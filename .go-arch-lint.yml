@@ -1,0 +1,56 @@
+version: 3
+workdir: .
+allow:
+  # Vendor (go.mod) deps are allowed everywhere — the boundary being
+  # enforced is project code, not libraries.
+  # Deep-scan (method-call/DI) analysis reports false positives on
+  # interface injection — shared's middleware accepts orgs.Service via
+  # the MembershipChecker interface without importing orgs. The base
+  # import linter enforces the boundary.
+  deepScan: false
+  depOnAnyVendor: true
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+components:
+  cmd:      { in: [ "cmd", "cmd/**" ] }
+  app:      { in: [ "internal/app", "internal/app/**" ] }
+  testutil: { in: [ "internal/testutil", "internal/testutil/**" ] }
+  schema:   { in: migrations }
+  shared:   { in: [ "internal/shared", "internal/shared/**" ] }
+  # Each feature slice is its own component: mayDependOn only names
+  # shared + itself, so feature → feature imports fail the check.
+  feat-auth:  { in: [ "internal/features/auth", "internal/features/auth/**" ] }
+  feat-orgs:  { in: [ "internal/features/orgs", "internal/features/orgs/**" ] }
+  feat-users: { in: [ "internal/features/users", "internal/features/users/**" ] }
+
+deps:
+  cmd:
+    mayDependOn:
+      - app
+      - shared
+  app:
+    anyProjectDeps: true
+  testutil:
+    mayDependOn:
+      - shared
+  schema:
+    mayDependOn:
+      - schema
+  shared:
+    mayDependOn:
+      - shared
+      - schema # embed FS for goose migrations
+  feat-auth:
+    mayDependOn:
+      - shared
+      - feat-auth
+  feat-orgs:
+    mayDependOn:
+      - shared
+      - feat-orgs
+  feat-users:
+    mayDependOn:
+      - shared
+      - feat-users

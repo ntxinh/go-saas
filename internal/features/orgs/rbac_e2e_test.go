@@ -23,8 +23,8 @@ func TestRBACRouteEnforcement(t *testing.T) {
 		orgs.NewFeature(svc, ef).RegisterRoutes(r)
 	})
 
-	owner := addUser(t, pool, ctx)
-	member := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
+	member := addUser(ctx, t, pool)
 	orgID := createOrg(t, r, owner, "Acme")
 
 	rec := do(t, r, owner, http.MethodPost, "/v1/orgs/"+orgID+"/members",
@@ -47,7 +47,7 @@ func TestRBACRouteEnforcement(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	// a user with no membership gets 404 from Tenant (existence hidden)
-	stranger := addUser(t, pool, ctx)
+	stranger := addUser(ctx, t, pool)
 	rec = do(t, r, stranger, http.MethodGet, "/v1/orgs/"+orgID, "")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }

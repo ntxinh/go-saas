@@ -105,7 +105,7 @@ func (f failAuthz) Revoke(context.Context, string, string) error        { return
 // their old role indefinitely.
 func TestMembershipWritesPropagateAuthzError(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner, member := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	owner, member := addUser(ctx, t, pool), addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
@@ -114,12 +114,12 @@ func TestMembershipWritesPropagateAuthzError(t *testing.T) {
 	// grant failure: AddMember commits the row but reports the desync
 	svc = orgs.NewService(pool, nil, failAuthz{grantErr: sentinel})
 	err = svc.AddMember(ctx, org.TenantID, member, "member")
-	assert.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, sentinel)
 
 	// revoke failure: ChangeRole/RemoveMember commit then report it
 	svc = orgs.NewService(pool, nil, failAuthz{revokeErr: sentinel})
 	err = svc.ChangeRole(ctx, org.TenantID, member, "admin")
-	assert.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, sentinel)
 	err = svc.RemoveMember(ctx, org.TenantID, member)
-	assert.ErrorIs(t, err, sentinel)
+	require.ErrorIs(t, err, sentinel)
 }

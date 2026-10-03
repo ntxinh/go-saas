@@ -17,7 +17,7 @@ import (
 )
 
 // New builds the application router.
-func New(cfg *config.Config, log *slog.Logger) *chi.Mux {
+func New(_ *config.Config, log *slog.Logger) *chi.Mux {
 	r := chi.NewRouter()
 	// OTel outermost (otelchi wraps otelhttp, names spans by route
 	// pattern); healthz excluded from traces.

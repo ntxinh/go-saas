@@ -62,6 +62,13 @@ func (s *Service) Invite(ctx context.Context, orgID uuid.UUID, inviterEmail, ema
 			return err
 		}
 		orgName = org.Name
+		seats, err := q.SeatCounts(ctx, pgUUID(orgID))
+		if err != nil {
+			return err
+		}
+		if err := s.seatCheck(ctx, q, orgID, seats.Members+seats.PendingInvites+1); err != nil {
+			return err
+		}
 		row, err := q.CreateInvite(ctx, sqlc.CreateInviteParams{
 			TenantID:  pgUUID(orgID),
 			Email:     email,
@@ -109,6 +116,13 @@ func (s *Service) Accept(ctx context.Context, token string, userID uuid.UUID, em
 
 	err = database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
 		q := s.repo.withTx(tx).q
+		seats, err := q.SeatCounts(ctx, pgUUID(orgID))
+		if err != nil {
+			return err
+		}
+		if err := s.seatCheck(ctx, q, orgID, seats.Members+1); err != nil {
+			return err
+		}
 		if err := q.AddMember(ctx, sqlc.AddMemberParams{
 			TenantID: pgUUID(orgID), UserID: pgUUID(userID), Role: row.Role,
 		}); err != nil {

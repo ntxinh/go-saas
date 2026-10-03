@@ -61,7 +61,7 @@ func createOrg(t *testing.T, r http.Handler, user uuid.UUID, name string) string
 
 func TestOrgLifecycle(t *testing.T) {
 	r, pool := newRouter(t)
-	owner, other := addUser(t, pool, context.Background()), addUser(t, pool, context.Background())
+	owner, other := addUser(context.Background(), t, pool), addUser(context.Background(), t, pool)
 	orgID := createOrg(t, r, owner, "Acme")
 
 	// list shows the org
@@ -123,7 +123,7 @@ func TestOrgLifecycle(t *testing.T) {
 
 func TestCreateOrgValidation(t *testing.T) {
 	r, pool := newRouter(t)
-	owner := addUser(t, pool, context.Background())
+	owner := addUser(context.Background(), t, pool)
 
 	rec := do(t, r, owner, http.MethodPost, "/v1/orgs", `{"name":""}`)
 	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)

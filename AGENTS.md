@@ -4,8 +4,8 @@
 
 Feature-sliced Go backend. `cmd/{api,worker,seed}` entrypoints;
 `internal/app/wire.go` manual DI; `internal/shared/*` (config, database,
-events, queue, middleware, server, security, errs); `internal/features/*`
-(auth, users, orgs, billing). Migrations in `migrations/` (goose);
+events, queue, middleware, plans, server, security, errs);
+`internal/features/*` (auth, users, orgs). Migrations in `migrations/` (goose);
 queries via sqlc into `internal/features/*/sqlc` — never hand-edit
 generated files.
 
@@ -27,8 +27,8 @@ generated files.
 
 ## Commands
 
-`mise install` · `make test` · `make lint` · `make fmt` · `make gen` ·
-`make migrate` · `make up` (compose deps).
+`mise install` · `make test` · `make lint` · `make arch` · `make sec` · `make fmt` ·
+`make gen` · `make migrate` · `make up` (compose deps) · `make up-app`.
 
 ## Never
 

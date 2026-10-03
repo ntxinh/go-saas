@@ -23,14 +23,14 @@ func Migrate(ctx context.Context, url string) error {
 		return fmt.Errorf("database: parse url: %w", err)
 	}
 	db := stdlib.OpenDB(*cfg)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Advisory lock is session-scoped: pin one conn for lock+unlock.
 	lock, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("database: lock conn: %w", err)
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	if _, err := lock.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, migrateLockKey); err != nil {
 		return fmt.Errorf("database: advisory lock: %w", err)
 	}

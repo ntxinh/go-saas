@@ -42,7 +42,7 @@ func WithTx(ctx context.Context, pool *pgxpool.Pool, fn TxFn) error {
 	if err != nil {
 		return fmt.Errorf("database: begin: %w", err)
 	}
-	defer tx.Rollback(ctx) // no-op after Commit; rolls back on panic
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after Commit; rolls back on panic
 	if err := fn(tx); err != nil {
 		return err
 	}

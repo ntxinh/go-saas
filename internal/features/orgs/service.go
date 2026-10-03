@@ -20,6 +20,7 @@ import (
 	"github.com/exodia/go-saas/internal/shared/errs"
 	"github.com/exodia/go-saas/internal/shared/events"
 	"github.com/exodia/go-saas/internal/shared/middleware"
+	"github.com/exodia/go-saas/internal/shared/plans"
 )
 
 // Org is a tenant.
@@ -80,6 +81,24 @@ func orgFrom(o sqlc.Org) Org {
 
 func validRole(role string) bool {
 	return role == "owner" || role == "admin" || role == "member"
+}
+
+// seatCheck enforces the org's plan seat cap. It runs inside the tenant
+// tx (counts are consistent with the pending write) and returns 422
+// validation when plan + count would exceed plans.Can. Callers pass the
+// seats to check: members+1 for direct adds, members+pending invites
+// when creating an invite (pending invites hold seats).
+func (s *Service) seatCheck(ctx context.Context, q *sqlc.Queries, orgID uuid.UUID, want int64) error {
+	org, err := q.GetOrg(ctx, pgUUID(orgID))
+	if err != nil {
+		return err
+	}
+	if !plans.Can(org.Plan, "members", int(want)) {
+		return errs.Validation(map[string]string{
+			"members": fmt.Sprintf("plan %q seat limit reached", org.Plan),
+		})
+	}
+	return nil
 }
 
 // Create inserts the org and the caller's owner membership in one tx.
@@ -209,7 +228,15 @@ func (s *Service) AddMember(ctx context.Context, orgID, userID uuid.UUID, role s
 		return errs.Validation(map[string]string{"role": "must be owner, admin or member"})
 	}
 	err := database.WithTenantTx(ctx, s.pool, orgID, func(tx pgx.Tx) error {
-		return s.repo.withTx(tx).q.AddMember(ctx, sqlc.AddMemberParams{
+		q := s.repo.withTx(tx).q
+		seats, err := q.SeatCounts(ctx, pgUUID(orgID))
+		if err != nil {
+			return err
+		}
+		if err := s.seatCheck(ctx, q, orgID, seats.Members+1); err != nil {
+			return err
+		}
+		return q.AddMember(ctx, sqlc.AddMemberParams{
 			TenantID: pgUUID(orgID), UserID: pgUUID(userID), Role: role,
 		})
 	})

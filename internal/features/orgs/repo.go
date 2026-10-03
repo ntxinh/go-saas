@@ -15,6 +15,7 @@ type Repo struct {
 	q *sqlc.Queries
 }
 
+// NewRepo binds the orgs queries to a pool or tx.
 func NewRepo(db sqlc.DBTX) *Repo { return &Repo{q: sqlc.New(db)} }
 
 func (r *Repo) withTx(tx pgx.Tx) *Repo { return &Repo{q: r.q.WithTx(tx)} }

@@ -42,7 +42,9 @@ func (a *pgAdapter) LoadPolicy(m model.Model) error {
 		for end > 0 && v[end-1] == "" {
 			end--
 		}
-		persist.LoadPolicyLine(ptype+","+strings.Join(v[:end], ","), m)
+		if err := persist.LoadPolicyLine(ptype+","+strings.Join(v[:end], ","), m); err != nil {
+			return err
+		}
 	}
 	return rows.Err()
 }

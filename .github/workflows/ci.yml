@@ -1,0 +1,72 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: gofumpt
+        run: test -z "$(go run mvdan.cc/gofumpt@v0.12.0 -l . | tee /dev/stderr)"
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.14.0
+
+  arch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go run github.com/fe3dback/go-arch-lint@v1.19.0 check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # testcontainers talks to the runner's Docker — no services needed
+      - run: go test -race ./...
+
+  sec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  build:
+    needs: [lint, arch, test, sec]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build api + worker images
+        run: |
+          docker build -f deploy/Containerfile --build-arg BIN=api -t go-saas-api .
+          docker build -f deploy/Containerfile --build-arg BIN=worker -t go-saas-worker .
+      - name: Push to GHCR (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          for bin in api worker; do
+            img=ghcr.io/${{ github.repository }}/go-saas-$bin
+            docker tag go-saas-$bin $img:${{ github.sha }}
+            docker tag go-saas-$bin $img:latest
+            docker push $img:${{ github.sha }}
+            docker push $img:latest
+          done

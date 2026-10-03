@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/exodia/go-saas/internal/shared/config"
 )
@@ -32,7 +33,7 @@ func Setup(ctx context.Context, cfg *config.Config) (func(context.Context) error
 		attribute.String("service.name", "go-saas-"+cfg.Env),
 	)
 	if cfg.OTLPEndpoint == "" {
-		otel.SetTracerProvider(oteltrace.NewNoopTracerProvider())
+		otel.SetTracerProvider(noop.NewTracerProvider())
 		return func(context.Context) error { return nil }, nil
 	}
 	exp, err := otlptracehttp.New(ctx,

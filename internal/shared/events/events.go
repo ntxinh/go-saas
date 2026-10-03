@@ -55,7 +55,7 @@ type HandlerFunc func(ctx context.Context, payload []byte) error
 // Subscribe registers h for topic on this router's bus. Returning a
 // non-nil error nacks the message and triggers the retry middleware.
 func (r *Router) Subscribe(topic string, h HandlerFunc) {
-	r.AddNoPublisherHandler("events."+topic, topic, r.bus,
+	r.AddConsumerHandler("events."+topic, topic, r.bus,
 		func(msg *message.Message) error { return h(msg.Context(), msg.Payload) })
 }
 

@@ -29,7 +29,7 @@ func inspector(rdbAddr string) *asynq.Inspector {
 func pending(t *testing.T, addr string) []*asynq.TaskInfo {
 	t.Helper()
 	insp := inspector(addr)
-	defer insp.Close()
+	defer func() { _ = insp.Close() }()
 	tasks, err := insp.ListPendingTasks("default")
 	require.NoError(t, err)
 	return tasks
@@ -38,7 +38,7 @@ func pending(t *testing.T, addr string) []*asynq.TaskInfo {
 func TestEnqueueMarshalsPayload(t *testing.T) {
 	rdb, _ := testutil.Redis(t)
 	client := queue.NewClient(rdb)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	err := queue.Enqueue(context.Background(), client, queue.TaskEmailInvite, struct {
 		Name string `json:"name"`
@@ -54,7 +54,7 @@ func TestEnqueueMarshalsPayload(t *testing.T) {
 func TestEnqueueInjectsTraceparent(t *testing.T) {
 	rdb, _ := testutil.Redis(t)
 	client := queue.NewClient(rdb)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    trace.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
@@ -145,7 +145,7 @@ func TestRedisOptPropagatesTLSAndUsername(t *testing.T) {
 	opt, err := redis.ParseURL("rediss://user:secret@upstash.example:6379/2")
 	require.NoError(t, err)
 	rdb := redis.NewClient(opt)
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	ro := queue.RedisOpt(rdb)
 	assert.Equal(t, "user", ro.Username)

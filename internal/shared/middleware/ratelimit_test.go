@@ -61,7 +61,7 @@ func TestRateLimit_MinuteWindow(t *testing.T) {
 			denied = i + 1
 		}
 	}
-	assert.Greater(t, denied, 0, "per-minute limit never fired")
+	assert.Positive(t, denied, "per-minute limit never fired")
 }
 
 func TestRateLimit_KeysByUserWhenAuthed(t *testing.T) {
@@ -77,7 +77,7 @@ func TestRateLimit_KeysByUserWhenAuthed(t *testing.T) {
 
 	// redis_rate prefixes keys with "rate:".
 	_, err := rdb.Get(context.Background(), "rate:rl:u:"+user.String()).Result()
-	assert.NoError(t, err, "expected user-keyed limiter entry")
+	require.NoError(t, err, "expected user-keyed limiter entry")
 }
 
 func TestRateLimit_AuthedChainUsesUserKey(t *testing.T) {
@@ -103,9 +103,9 @@ func TestRateLimit_AuthedChainUsesUserKey(t *testing.T) {
 
 	ctx := context.Background()
 	_, err := rdb.Get(ctx, "rate:rl:u:"+user.String()).Result()
-	assert.NoError(t, err, "expected user-keyed limiter entry")
+	require.NoError(t, err, "expected user-keyed limiter entry")
 	_, err = rdb.Get(ctx, "rate:rl:ip:192.0.2.1").Result()
-	assert.NoError(t, err, "expected ip-keyed limiter entry too")
+	require.NoError(t, err, "expected ip-keyed limiter entry too")
 }
 
 func TestRateLimit_XForwardedFor(t *testing.T) {
@@ -118,5 +118,5 @@ func TestRateLimit_XForwardedFor(t *testing.T) {
 	srv.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusNoContent, rec.Code)
 	_, err := rdb.Get(context.Background(), "rate:rl:ip:203.0.113.7").Result()
-	assert.NoError(t, err, "expected first XFF entry used as key")
+	require.NoError(t, err, "expected first XFF entry used as key")
 }

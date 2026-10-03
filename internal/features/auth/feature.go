@@ -25,6 +25,7 @@ type Feature struct {
 	orgs    func(ctx context.Context, id uuid.UUID) ([]Org, error)
 }
 
+// New builds the auth feature (profile + orgs seams are wired in app).
 func New(
 	profile func(ctx context.Context, id uuid.UUID) (string, error),
 	orgs func(ctx context.Context, id uuid.UUID) ([]Org, error),

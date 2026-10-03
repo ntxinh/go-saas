@@ -34,7 +34,7 @@ func newService(t *testing.T) (*orgs.Service, *pgxpool.Pool, context.Context) {
 
 func pgid(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }
 
-func addUser(t *testing.T, pool *pgxpool.Pool, ctx context.Context) uuid.UUID {
+func addUser(ctx context.Context, t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	_, err := pool.Exec(ctx, "INSERT INTO users(id,email) VALUES($1,$2)", pgid(id), id.String()+"@t.c")
@@ -44,7 +44,7 @@ func addUser(t *testing.T, pool *pgxpool.Pool, ctx context.Context) uuid.UUID {
 
 func TestCreateMakesOwnerMembership(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 	assert.Equal(t, "Acme", org.Name)
@@ -58,7 +58,7 @@ func TestCreateMakesOwnerMembership(t *testing.T) {
 
 func TestTwoUsersSeparateTenants(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	a, b := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	a, b := addUser(ctx, t, pool), addUser(ctx, t, pool)
 
 	orgA, err := svc.Create(ctx, a, "A Corp")
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestTwoUsersSeparateTenants(t *testing.T) {
 // though both exist physically.
 func TestRLSIsolation(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	a, b := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	a, b := addUser(ctx, t, pool), addUser(ctx, t, pool)
 	orgA, err := svc.Create(ctx, a, "A Corp")
 	require.NoError(t, err)
 	_, err = svc.Create(ctx, b, "B Corp")
@@ -114,7 +114,7 @@ func TestRLSIsolation(t *testing.T) {
 
 func TestGetUpdateMembers(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner, m2 := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	owner, m2 := addUser(ctx, t, pool), addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Old")
 	require.NoError(t, err)
 
@@ -146,55 +146,55 @@ func TestGetUpdateMembers(t *testing.T) {
 
 func TestAddMemberDuplicateIs409(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner, m2 := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	owner, m2 := addUser(ctx, t, pool), addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
 	require.NoError(t, svc.AddMember(ctx, org.TenantID, m2, "member"))
 	err = svc.AddMember(ctx, org.TenantID, m2, "member")
-	assert.ErrorIs(t, err, errs.ErrConflict)
+	require.ErrorIs(t, err, errs.ErrConflict)
 }
 
 func TestAddMemberUnknownUserIsValidation(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
 	err = svc.AddMember(ctx, org.TenantID, uuid.New(), "member")
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 }
 
 func TestRemoveLastOwnerIsValidation(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
 	err = svc.RemoveMember(ctx, org.TenantID, owner)
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 
 	// demoting the last owner is likewise refused
 	err = svc.ChangeRole(ctx, org.TenantID, owner, "member")
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 }
 
 func TestBadInputIsValidation(t *testing.T) {
 	svc, pool, ctx := newService(t)
-	owner := addUser(t, pool, ctx)
+	owner := addUser(ctx, t, pool)
 	org, err := svc.Create(ctx, owner, "Acme")
 	require.NoError(t, err)
 
 	_, err = svc.Create(ctx, owner, "   ")
-	assert.ErrorIs(t, err, errs.ErrValidation)
+	require.ErrorIs(t, err, errs.ErrValidation)
 
-	m2 := addUser(t, pool, ctx)
-	assert.ErrorIs(t, svc.AddMember(ctx, org.TenantID, m2, "superuser"), errs.ErrValidation)
-	assert.ErrorIs(t, svc.ChangeRole(ctx, org.TenantID, m2, "superuser"), errs.ErrValidation)
+	m2 := addUser(ctx, t, pool)
+	require.ErrorIs(t, svc.AddMember(ctx, org.TenantID, m2, "superuser"), errs.ErrValidation)
+	require.ErrorIs(t, svc.ChangeRole(ctx, org.TenantID, m2, "superuser"), errs.ErrValidation)
 }
 
 func TestGetMissingOrgIsNotFound(t *testing.T) {
 	svc, _, ctx := newService(t)
 	_, err := svc.Get(ctx, uuid.New())
-	assert.ErrorIs(t, err, errs.ErrNotFound)
+	require.ErrorIs(t, err, errs.ErrNotFound)
 }
