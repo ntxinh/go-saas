@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: postgresql
+    queries: internal/features/users/queries.sql
+    schema: migrations/
+    gen:
+      go: { package: sqlc, out: internal/features/users/sqlc, sql_package: "pgx/v5" }
+  - engine: postgresql
+    queries: internal/features/orgs/queries.sql
+    schema: migrations/
+    gen:
+      go: { package: sqlc, out: internal/features/orgs/sqlc, sql_package: "pgx/v5" }

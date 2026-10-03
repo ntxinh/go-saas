@@ -58,4 +58,13 @@ per-org (spec §5).
 Supabase Auth owns credentials; the API verifies RS256 JWTs via JWKS
 (`JWKsURL()` = `SUPABASE_URL + /auth/v1/.well-known/jwks.json`) and
 lazy-upserts `users` from claims on each request — no auth webhook
+
+## Migrations
+
+Goose SQL files live at repo-root `migrations/` (two consumers: the
+`goose` CLI via `make migrate`, and `database.Migrate` in-process).
+`go:embed` cannot reach `../migrations` from `internal/`, so a thin
+`migrations/migrations.go` package exposes `migrations.FS embed.FS`
+at root; `Migrate` takes `pg_advisory_lock(727272)` on a pinned
+session before `provider.Up` so racing replicas serialize.
 (spec §6).
