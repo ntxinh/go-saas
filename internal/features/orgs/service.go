@@ -107,8 +107,7 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string) (Or
 		return Org{}, err
 	}
 	s.publish(ctx, "org.created", org)
-	s.grant(ctx, org.TenantID, userID, "owner")
-	return org, nil
+	return org, s.grant(ctx, org.TenantID, userID, "owner")
 }
 
 // IsMember resolves membership as the pool owner — deliberately outside
@@ -224,8 +223,7 @@ func (s *Service) AddMember(ctx context.Context, orgID, userID uuid.UUID, role s
 		return fmt.Errorf("orgs: add member: %w", err)
 	}
 	s.publish(ctx, "org.member_added", Member{UserID: userID, Role: role})
-	s.grant(ctx, orgID, userID, role)
-	return nil
+	return s.grant(ctx, orgID, userID, role)
 }
 
 // RemoveMember deletes a membership. Refuses to remove the org's last
@@ -251,8 +249,7 @@ func (s *Service) RemoveMember(ctx context.Context, orgID, userID uuid.UUID) err
 		return err
 	}
 	s.publish(ctx, events.TopicMemberRemoved, events.MemberRemoved{OrgID: orgID, UserID: userID})
-	s.revoke(ctx, orgID, userID)
-	return nil
+	return s.revoke(ctx, orgID, userID)
 }
 
 // ChangeRole updates a member's role. Refuses to demote the last owner.
@@ -280,9 +277,10 @@ func (s *Service) ChangeRole(ctx context.Context, orgID, userID uuid.UUID, role 
 		return err
 	}
 	s.publish(ctx, events.TopicRoleChanged, events.RoleChanged{OrgID: orgID, UserID: userID, Role: role})
-	s.revoke(ctx, orgID, userID)
-	s.grant(ctx, orgID, userID, role)
-	return nil
+	if err := s.revoke(ctx, orgID, userID); err != nil {
+		return err
+	}
+	return s.grant(ctx, orgID, userID, role)
 }
 
 // guardLastOwner returns ErrValidation when the target is an owner, the
@@ -326,22 +324,29 @@ func (s *Service) publish(ctx context.Context, topic string, payload any) {
 }
 
 // grant/revoke sync casbin g-lines after a committed membership write.
-// Like publish, failures are logged and swallowed — the members table is
-// authoritative; a missed g-line fails closed (deny) not open.
-func (s *Service) grant(ctx context.Context, orgID, userID uuid.UUID, role string) {
+// Failures are logged AND returned: casbin_rule is the authz ledger, so a
+// swallowed desync could leave a stale grant (e.g. a demoted owner keeps
+// their role:owner g-line). The op's DB write already committed — the
+// error tells the caller "authz desynced"; retrying the op heals it
+// (grants/revokes are idempotent). Unlike publish, these propagate.
+func (s *Service) grant(ctx context.Context, orgID, userID uuid.UUID, role string) error {
 	if s.authz == nil {
-		return
+		return nil
 	}
 	if err := s.authz.Grant(ctx, orgID.String(), userID.String(), role); err != nil {
 		middleware.Logger(ctx).Warn("authz grant failed", "org", orgID, "user", userID, "err", err)
+		return fmt.Errorf("orgs: authz grant: %w", err)
 	}
+	return nil
 }
 
-func (s *Service) revoke(ctx context.Context, orgID, userID uuid.UUID) {
+func (s *Service) revoke(ctx context.Context, orgID, userID uuid.UUID) error {
 	if s.authz == nil {
-		return
+		return nil
 	}
 	if err := s.authz.Revoke(ctx, orgID.String(), userID.String()); err != nil {
 		middleware.Logger(ctx).Warn("authz revoke failed", "org", orgID, "user", userID, "err", err)
+		return fmt.Errorf("orgs: authz revoke: %w", err)
 	}
+	return nil
 }

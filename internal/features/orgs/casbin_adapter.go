@@ -141,9 +141,10 @@ func (f *Enforcer) Revoke(_ context.Context, orgID, userID string) error {
 }
 
 // Invalidate reloads all policies; the RoleChanged/MemberRemoved
-// subscriber calls it. In-process writes already update the enforcer, so
-// this is a belt over the event contract.
+// subscriber calls it and returns the error (watermill logs/retries it —
+// a stale policy set never silently persists). In-process writes already
+// update the enforcer, so this is a belt over the event contract.
 //
 // ponytail: full LoadPolicy per event — fine while casbin_rule is small;
 // switch to LoadFilteredPolicy per org domain if the table grows.
-func (f *Enforcer) Invalidate(_ string) { _ = f.e.LoadPolicy() }
+func (f *Enforcer) Invalidate(_ string) error { return f.e.LoadPolicy() }

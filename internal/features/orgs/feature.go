@@ -1,6 +1,8 @@
 package orgs
 
 import (
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/exodia/go-saas/internal/shared/middleware"
@@ -13,8 +15,13 @@ type Feature struct {
 }
 
 // NewFeature builds the feature. ef may be nil (tests without casbin);
-// then the {orgID} subtree keeps only the Tenant membership gate.
+// then the {orgID} subtree keeps only the Tenant membership gate — a
+// warn fires at construction so a nil enforcer in a real wiring can't
+// silently run org routes unguarded.
 func NewFeature(svc *Service, ef middleware.Enforcer) *Feature {
+	if ef == nil {
+		slog.Warn("orgs: no enforcer — org routes run without RBAC")
+	}
 	return &Feature{svc: svc, ef: ef}
 }
 

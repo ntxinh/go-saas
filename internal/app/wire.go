@@ -91,16 +91,14 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return err
 		}
-		enforcer.Invalidate(p.OrgID.String())
-		return nil
+		return enforcer.Invalidate(p.OrgID.String())
 	})
 	events.Subscribe(router, events.TopicMemberRemoved, func(_ context.Context, payload []byte) error {
 		var p events.MemberRemoved
 		if err := json.Unmarshal(payload, &p); err != nil {
 			return err
 		}
-		enforcer.Invalidate(p.OrgID.String())
-		return nil
+		return enforcer.Invalidate(p.OrgID.String())
 	})
 	authFeat := auth.New(
 		func(ctx context.Context, id uuid.UUID) (string, error) {

@@ -2,6 +2,7 @@ package orgs_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -86,10 +87,39 @@ func TestEnforceRoleMatrix(t *testing.T) {
 		assert.Equal(t, tc.want, ok, "%s %s %s in %s", tc.sub, tc.act, tc.obj, tc.dom)
 	}
 
-
 	// Revoke flips a previous allow to deny.
 	require.NoError(t, ef.Revoke(ctx, orgA, member))
 	ok, err := ef.Enforce(member, orgA, obj, "GET")
 	require.NoError(t, err)
 	assert.False(t, ok)
+}
+
+// failAuthz returns err on the named op; nil means succeed.
+type failAuthz struct{ grantErr, revokeErr error }
+
+func (f failAuthz) Grant(context.Context, string, string, string) error { return f.grantErr }
+func (f failAuthz) Revoke(context.Context, string, string) error        { return f.revokeErr }
+
+// A failing Authorizer must surface from membership writes — a swallowed
+// revoke failure would leave a demoted user's stale g-line granting
+// their old role indefinitely.
+func TestMembershipWritesPropagateAuthzError(t *testing.T) {
+	svc, pool, ctx := newService(t)
+	owner, member := addUser(t, pool, ctx), addUser(t, pool, ctx)
+	org, err := svc.Create(ctx, owner, "Acme")
+	require.NoError(t, err)
+
+	sentinel := errors.New("casbin down")
+
+	// grant failure: AddMember commits the row but reports the desync
+	svc = orgs.NewService(pool, nil, failAuthz{grantErr: sentinel})
+	err = svc.AddMember(ctx, org.TenantID, member, "member")
+	assert.ErrorIs(t, err, sentinel)
+
+	// revoke failure: ChangeRole/RemoveMember commit then report it
+	svc = orgs.NewService(pool, nil, failAuthz{revokeErr: sentinel})
+	err = svc.ChangeRole(ctx, org.TenantID, member, "admin")
+	assert.ErrorIs(t, err, sentinel)
+	err = svc.RemoveMember(ctx, org.TenantID, member)
+	assert.ErrorIs(t, err, sentinel)
 }

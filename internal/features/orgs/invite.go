@@ -136,8 +136,7 @@ func (s *Service) Accept(ctx context.Context, token string, userID uuid.UUID, em
 	s.publish(ctx, events.TopicMemberJoined, events.MemberJoined{
 		OrgID: orgID, UserID: userID, Role: row.Role,
 	})
-	s.grant(ctx, orgID, userID, row.Role)
-	return nil
+	return s.grant(ctx, orgID, userID, row.Role)
 }
 
 // RevokeInvite deletes a pending invite inside the org's tenant tx.
