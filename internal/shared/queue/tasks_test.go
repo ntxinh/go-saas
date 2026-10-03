@@ -29,7 +29,7 @@ func pending(t *testing.T, addr string) []*asynq.TaskInfo {
 }
 
 func TestEnqueueMarshalsPayload(t *testing.T) {
-	rdb := testutil.Redis(t)
+	rdb, _ := testutil.Redis(t)
 	client := queue.NewClient(rdb)
 	defer client.Close()
 
@@ -45,7 +45,7 @@ func TestEnqueueMarshalsPayload(t *testing.T) {
 }
 
 func TestEnqueueInjectsTraceparent(t *testing.T) {
-	rdb := testutil.Redis(t)
+	rdb, _ := testutil.Redis(t)
 	client := queue.NewClient(rdb)
 	defer client.Close()
 

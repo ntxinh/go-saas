@@ -10,11 +10,12 @@ import (
 
 // Sentinel errors returned by services and mapped to HTTP statuses by Write.
 var (
-	ErrNotFound     = errors.New("not found")
-	ErrConflict     = errors.New("conflict")
-	ErrValidation   = errors.New("validation failed")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
+	ErrNotFound        = errors.New("not found")
+	ErrConflict        = errors.New("conflict")
+	ErrValidation      = errors.New("validation failed")
+	ErrUnauthorized    = errors.New("unauthorized")
+	ErrForbidden       = errors.New("forbidden")
+	ErrTooManyRequests = errors.New("rate limit exceeded")
 )
 
 // Problem is an RFC 9457 problem details document.
@@ -71,6 +72,9 @@ func Write(w http.ResponseWriter, err error) {
 		p = Problem{Type: "about:blank", Status: status, Detail: err.Error()}
 	case errors.Is(err, ErrForbidden):
 		status = http.StatusForbidden
+		p = Problem{Type: "about:blank", Status: status, Detail: err.Error()}
+	case errors.Is(err, ErrTooManyRequests):
+		status = http.StatusTooManyRequests
 		p = Problem{Type: "about:blank", Status: status, Detail: err.Error()}
 	}
 	p.Title = http.StatusText(status)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-redis/redis_rate/v10"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 
@@ -138,8 +139,13 @@ func Wire(ctx context.Context, cfg *config.Config, log *slog.Logger) (*chi.Mux, 
 	}()
 
 	r.Route("/v1", func(r chi.Router) {
+		// Spec §4 order: ratelimit → authn → idempotency → tenant → rbac.
+		// RateLimit runs before Authn so it keys on ip (user key only
+		// kicks in if some outer middleware already put one in ctx).
+		r.Use(middleware.RateLimit(redis_rate.NewLimiter(rdb)))
 		r.Use(middleware.Authn(keys, cfg.Issuer(), "authenticated"))
 		r.Use(middleware.UpsertUser(userSvc.Sync))
+		r.Use(middleware.Idempotency(rdb))
 		authFeat.RegisterRoutes(r)
 		orgsFeat.RegisterRoutes(r)
 	})
