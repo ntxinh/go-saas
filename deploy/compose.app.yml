@@ -1,0 +1,31 @@
+# App services on top of the base deps stack. Deliberately a separate
+# overlay (not compose profiles — podman-compose support is uneven):
+#
+#   podman-compose -f deploy/compose.yml -f deploy/compose.app.yml up -d --build
+#
+# Requires a filled-in .env (cp .env.example .env).
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+      args: { BIN: api }
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app
+      REDIS_URL: redis://redis:6379
+      SMTP_ADDR: mailpit:1025
+    ports:
+      - "8080:8080"
+    depends_on: [postgres, redis]
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+      args: { BIN: worker }
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/app
+      REDIS_URL: redis://redis:6379
+      SMTP_ADDR: mailpit:1025
+    depends_on: [postgres, redis]
