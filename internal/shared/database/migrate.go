@@ -45,4 +45,3 @@ func Migrate(ctx context.Context, url string) error {
 	}
 	return nil
 }
-

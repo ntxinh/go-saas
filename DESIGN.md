@@ -58,6 +58,7 @@ per-org (spec §5).
 Supabase Auth owns credentials; the API verifies RS256 JWTs via JWKS
 (`JWKsURL()` = `SUPABASE_URL + /auth/v1/.well-known/jwks.json`) and
 lazy-upserts `users` from claims on each request — no auth webhook
+(spec §6).
 
 ## Migrations
 
@@ -67,4 +68,8 @@ Goose SQL files live at repo-root `migrations/` (two consumers: the
 `migrations/migrations.go` package exposes `migrations.FS embed.FS`
 at root; `Migrate` takes `pg_advisory_lock(727272)` on a pinned
 session before `provider.Up` so racing replicas serialize.
-(spec §6).
+
+## Toolchain
+
+`mise.toml` `go` pin must match `go.mod`'s `go` directive (both 1.26;
+goose v3.28/sqlc v1.31 force >= 1.26). Bump them together.

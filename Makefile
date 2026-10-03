@@ -35,6 +35,7 @@ down:
 	podman-compose -f deploy/compose.yml down
 
 podman-env:
+	@echo "export DOCKER_HOST=$(DOCKER_HOST)"
 	@echo "export TESTCONTAINERS_RYUK_DISABLED=$(TESTCONTAINERS_RYUK_DISABLED)"
 	@echo "export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=$(TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE)"
 	@echo "systemctl --user enable --now podman.socket"
